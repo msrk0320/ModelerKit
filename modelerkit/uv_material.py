@@ -16,9 +16,9 @@ def _root(obj):
     return obj
 
 
-class MADPLUGIN_OT_single_uv_map(bpy.types.Operator):
+class MODELERKIT_OT_single_uv_map(bpy.types.Operator):
     """Keep only the active UV map on every selected mesh and name it UVMap"""
-    bl_idname = "madplugin.single_uv_map"
+    bl_idname = "modelerkit.single_uv_map"
     bl_label = "Single UV Map"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -37,13 +37,14 @@ class MADPLUGIN_OT_single_uv_map(bpy.types.Operator):
                 layers.remove(layers[name])
             layers[0].name = UV_NAME
             changed += 1
-        self.report({"INFO"}, f"{changed} mesh(es) now have one UV map named {UV_NAME}")
+        self.report({"INFO"}, f"{changed} mesh(es) now have one UV map named {UV_NAME}" if changed
+                    else "No UV maps found on the selected meshes")
         return {"FINISHED"}
 
 
-class MADPLUGIN_OT_name_materials_from_root(bpy.types.Operator):
+class MODELERKIT_OT_name_materials_from_root(bpy.types.Operator):
     """Give each root's selected meshes one shared material named Mat_<root object name> (the SKU)"""
-    bl_idname = "madplugin.name_materials_from_root"
+    bl_idname = "modelerkit.name_materials_from_root"
     bl_label = "Single Material from Root"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -59,7 +60,7 @@ class MADPLUGIN_OT_name_materials_from_root(bpy.types.Operator):
                 roots_of.setdefault(o.data, set()).add(_root(o))
         # an Alt+D mesh used by several products can hold only one SKU material: leave it alone
         shared = {me for me, roots in roots_of.items() if len(roots) > 1}
-        by_root = {}
+        by_root, clashes = {}, []
         for o in context.selected_objects:
             if o.type == "MESH" and o.data not in shared:
                 by_root.setdefault(_root(o), []).append(o)
@@ -75,31 +76,35 @@ class MADPLUGIN_OT_name_materials_from_root(bpy.types.Operator):
             # renaming it cannot rename another product's and a new product never shares an old SKU's
             own = {me for me, roots in roots_of.items() if roots == {root}}
             own |= {o for o in bpy.data.objects if o.type == "MESH" and _root(o) == root}
-            if bpy.data.user_map(subset={mat})[mat] - own:
+            if {u for u in bpy.data.user_map(subset={mat})[mat] if u.users} - own:  # deleted parts' meshes don't count
                 mat = mat.copy()
-            if mat.name != name and name not in bpy.data.materials:
-                mat.name = name
+            if mat.name != name:
+                if name in bpy.data.materials:
+                    clashes.append(mat.name)
+                else:
+                    mat.name = name
             for me in meshes:
                 me.materials.clear()
                 me.materials.append(mat)
                 me.polygons.foreach_set("material_index", [0] * len(me.polygons))
                 me.update()
         skipped = sorted(me.name for me in shared if any(o.data is me for o in context.selected_objects))
-        if skipped:
-            self.report({"WARNING"}, f"{len(by_root)} root(s) now use one material; left alone, used by several "
-                                     f"products: {', '.join(skipped)}")
-            return {"FINISHED"}
-        self.report({"INFO"}, f"{len(by_root)} root(s) now use one material")
+        notes = [f"left alone, used by several products: {', '.join(skipped)}"] if skipped else []
+        if clashes:
+            notes.append(f"another product already has that name, so these got a number: {', '.join(clashes)}")
+        self.report({"WARNING"} if notes else {"INFO"},
+                    "; ".join([f"{len(by_root)} root(s) now use one material"] + notes))
         return {"FINISHED"}
 
 
 def draw(layout, context):
     col = layout.column(align=True)
-    col.operator(MADPLUGIN_OT_single_uv_map.bl_idname, icon="UV")
-    col.operator(MADPLUGIN_OT_name_materials_from_root.bl_idname, icon="MATERIAL")
+    col.operator(MODELERKIT_OT_single_uv_map.bl_idname, icon="UV")
+    col.operator(MODELERKIT_OT_name_materials_from_root.bl_idname, icon="MATERIAL")
+    col.operator("modelerkit.find_folded_uvs", icon="VIEWZOOM")
 
 
-classes = (MADPLUGIN_OT_single_uv_map, MADPLUGIN_OT_name_materials_from_root)
+classes = (MODELERKIT_OT_single_uv_map, MODELERKIT_OT_name_materials_from_root)
 
 
 def register():

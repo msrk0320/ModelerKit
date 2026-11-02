@@ -9,7 +9,7 @@ KEY_C = "_explode_center"  # world-space rest bbox centre of each object
 KEY_S = "_explode_size"    # largest dimension of the object's world bounding box at rest
 KEY_N = "_explode_name"    # name of the object the rest data belongs to (Shift+D copies custom properties)
 SK = "Explode"             # shape key that moves loose mesh islands apart
-KEY_A = "_explode_axis"    # on the mesh's shape keys: the world axis the Explode key was built for
+KEY_P = "_explode_placed"  # the local location the slider last gave the object: anything else is the user's own move
 KEY_B = "_explode_basis"   # on the mesh's shape keys: the Basis was added by this tool, not the user's
 TIE = 0.02                 # centres closer than this share of the layout's spread count as one place
 
@@ -36,8 +36,6 @@ def remove_key(o):
         return
     o.shape_key_remove(kb)
     keys = o.data.shape_keys
-    if KEY_A in keys:
-        del keys[KEY_A]
     added_basis = KEY_B in keys
     if added_basis:
         del keys[KEY_B]
@@ -46,26 +44,8 @@ def remove_key(o):
     o.use_shape_key_edit_mode = False  # shortcut: assumes the user had it off (Blender's default)
 
 
-def bake_and_remove_key(o):
-    """Move the pieces' current offset into the mesh and its other shape keys, then delete the Explode key.
-    Works on shared meshes too: linked duplicates show the same pieces anyway."""
-    me, kb = o.data, explode_key(o)
-    if kb is None:
-        return
-    co, ref = [0.0] * (3 * len(me.vertices)), [0.0] * (3 * len(me.vertices))
-    kb.data.foreach_get("co", co)
-    kb.relative_key.data.foreach_get("co", ref)
-    f = 0.0 if kb.mute else kb.value
-    offset = [(a - b) * f for a, b in zip(co, ref)]
-    remove_key(o)
-    for points in [me.vertices] + [k.data for k in (me.shape_keys.key_blocks if me.shape_keys else ())]:
-        points.foreach_get("co", co)
-        points.foreach_set("co", [a + d for a, d in zip(co, offset)])
-    me.update()
-
-
 def targets(context):
-    if context.scene.explode_selected_only:
+    if context.scene.mk_explode_selected_only:
         objs = context.selected_objects
     else:  # parts hidden since they were moved still go back with the slider
         shown = set(context.visible_objects)
@@ -104,9 +84,9 @@ def rest_bounds(o, moving=()):
     return (Vector(min(p[i] for p in pts) for i in range(3)), Vector(max(p[i] for p in pts) for i in range(3)))
 
 
-def side_by_side(a, b, axis):
-    """True when the boxes are apart across the axis (a left/right pair seen along Y or Z)."""
-    return any(axis[i] == 0 and (a[1][i] < b[0][i] or b[1][i] < a[0][i]) for i in range(3))
+def side_by_side(a, b):
+    """True when the boxes are apart on Y or Z, so they don't block each other along X."""
+    return any(a[1][i] < b[0][i] or b[1][i] < a[0][i] for i in (1, 2))
 
 
 def parent_shift(o, moving=()):
@@ -123,27 +103,45 @@ def capture(o):
     o[KEY] = tuple(o.matrix_world.translation - shift)
     o[KEY_C] = tuple(bbox_center(o) - shift)
     o[KEY_S] = bbox_size(o)
+    if KEY_P in o:
+        del o[KEY_P]  # a copy holds its source's
+
+
+def hand_move(o):
+    """How far the user moved o since the slider placed it, in world space. Measured on its local location, which a
+    moving parent doesn't change."""
+    if KEY_P not in o:
+        return Vector()
+    move = o.location - Vector(o[KEY_P])
+    return o.parent.matrix_world.to_3x3() @ o.matrix_parent_inverse.to_3x3() @ move if o.parent else move
+
+
+def keep_hand_moves(objs):
+    """Move the rest position along with whatever the user moved while exploded; children go with their parent."""
+    moved = {}
+    for o in sorted(objs, key=depth):
+        p = o.parent
+        while p and p not in moved:
+            p = p.parent
+        moved[o] = hand_move(o) + (moved[p] if p else Vector())
+        if moved[o].length > 1e-4:
+            o[KEY] = tuple(Vector(o[KEY]) + moved[o])
+            o[KEY_C] = tuple(Vector(o[KEY_C]) + moved[o])
 
 
 def clear(objs):
     for o in objs:
-        for k in (KEY, KEY_C, KEY_S, KEY_N):
+        for k in (KEY, KEY_C, KEY_S, KEY_N, KEY_P):
             if k in o:
                 del o[k]
 
 
-def axis_vector(direction):
-    return Vector([float(direction == a) for a in "XYZ"])
-
-
-def island_key(o, direction):
-    """Return the Explode shape key, building it from the mesh's loose parts if missing. The pieces move along the
-    world axis, whatever the object's rotation or (negative) scale; a key built for another axis is rebuilt."""
+def island_key(o):
+    """Return the Explode shape key, building it from the mesh's loose parts if missing. The pieces move along world
+    X, whatever the object's rotation or (negative) scale."""
     me, kb = o.data, explode_key(o)
-    if kb and me.shape_keys.get(KEY_A) == direction:
-        return kb
     if kb:
-        remove_key(o)
+        return kb
     if not me.vertices:
         return None
     parent = list(range(len(me.vertices)))
@@ -179,20 +177,19 @@ def island_key(o, direction):
     kb = o.shape_key_add(name=SK, from_mix=False)
     kb.slider_min, kb.slider_max = 0.0, 10.0
     o.use_shape_key_edit_mode = True
-    me.shape_keys[KEY_A] = direction
     if added_basis:
         me.shape_keys[KEY_B] = 1
-    axis, to_local = axis_vector(direction), to_world.inverted_safe()
-    shift = {r: to_local @ (axis * (((lo[r] + hi[r]) / 2 - mid) @ axis)) for r in lo}
+    to_local = to_world.inverted_safe()
+    shift = {r: to_local @ Vector((((lo[r] + hi[r]) / 2 - mid).x, 0, 0)) for r in lo}
     for i, r in enumerate(roots):
         kb.data[i].co = me.vertices[i].co + shift[r]
     return kb
 
 
-def set_island_value(o, value, build, direction):
+def set_island_value(o, value):
     # Edit Mode writes its own copy of the shape keys back on exit, so a key built or switched under it is lost.
     editing = o.mode == 'EDIT'
-    kb = island_key(o, direction) if build and not editing else explode_key(o)
+    kb = island_key(o) if value > 0 and not editing else explode_key(o)
     if kb:
         kb.value = value
         if not editing:
@@ -205,47 +202,36 @@ def update(self, context):
     if not objs:
         return
     sc = context.scene
-    f = sc.explode_factor
+    f = sc.mk_explode_factor
     for o in objs:
         if not has_rest(o):
             capture(o)  # added, copied or newly selected since the last capture
         o[KEY_N] = o.name  # a renamed object keeps its rest data
+    keep_hand_moves(objs)
     for o in objs:
-        set_island_value(o, f if sc.explode_islands else 0.0, sc.explode_islands and f > 0, sc.explode_direction)
+        set_island_value(o, f)
 
     centers = {o: Vector(o[KEY_C]) for o in objs}
     sizes = {o: o[KEY_S] for o in objs}
 
-    direction = sc.explode_direction
-    anchor = sc.explode_anchor
-    active = context.view_layer.objects.active
-
-    # Along an axis: the spread is added to the rest layout, so 0 is the rest pose and the order is kept.
-    # Parts at the same place on the axis that sit side by side (a left/right pair along Y or Z) share a rank
-    # and move together; overlapping parts (nested ones) still get their own.
-    axis = axis_vector(direction)
-    ranked = sorted(objs, key=lambda o: (centers[o] @ axis, o.name))
-    places = [centers[o] @ axis for o in ranked]
+    # The spread is added to the rest layout, so 0 is the rest pose and the order is kept. Parts at the same X that
+    # sit side by side share a rank and move together; overlapping parts (nested ones) still get their own.
+    ranked = sorted(objs, key=lambda o: (centers[o].x, o.name))
+    places = [centers[o].x for o in ranked]
     moving = set(objs)
     bounds = {o: rest_bounds(o, moving) for o in ranked}
     tie = TIE * (places[-1] - places[0])
     rank, ranks, group = 0, [], []
     for i, o in enumerate(ranked):
         if i and (places[i] - places[i - 1] > tie
-                  or not all(side_by_side(bounds[o], bounds[g], axis) for g in group)):
+                  or not all(side_by_side(bounds[o], bounds[g]) for g in group)):
             rank, group = rank + 1, []
         group.append(o)
         ranks.append(rank)
     step = f * max(sizes.values())
     offsets = {}
     for o, r in zip(ranked, ranks):
-        offsets[o] = axis * ((r - rank / 2) * step)
-
-    # Apply anchor if active object is in the moving set
-    if anchor and active and active in objs:
-        anchor_offset = offsets[active]
-        for o in objs:
-            offsets[o] = offsets[o] - anchor_offset
+        offsets[o] = Vector(((r - rank / 2) * step, 0, 0))
 
     # Place objects
     for o in sorted(objs, key=depth):
@@ -253,9 +239,15 @@ def update(self, context):
         if o.children:
             context.view_layer.update()  # a descendant is placed from its parent's matrix, which must not be stale
 
+    context.view_layer.update()
     if f == 0:
         clear(objs)  # all back at rest: forget it, so moves made from here on are kept by the next explode
-    context.view_layer.update()
+        for o in objs:
+            if o.mode != 'EDIT':  # Edit Mode would write the key back on exit; Reset takes it from there
+                remove_key(o)  # a leftover key blocks Apply Modifier and ends up in exports
+    else:
+        for o in objs:
+            o[KEY_P] = tuple(o.location)
 
 
 def can_run(cls, context, ok, why):
@@ -274,21 +266,22 @@ def poll_has_explode_data(cls, context):
                    "Nothing to reset")
 
 
-class OBJECT_OT_explode_reset(bpy.types.Operator):
-    bl_idname = "object.explode_reset"
+class MODELERKIT_OT_explode_reset(bpy.types.Operator):
+    bl_idname = "modelerkit.explode_reset"
     bl_label = "Reset"
     bl_description = ("Put every part back where it started and remove all explode data from the file")
     bl_options = {'REGISTER', 'UNDO'}
     poll = classmethod(poll_has_explode_data)
 
     def execute(self, context):
-        # Restore positions for objects with rest data (parents before children)
-        objs = exploded(context.scene.objects)
+        # Restore positions in every scene, because the rest data below goes from all of them (parents before children)
+        objs = exploded(o for o in bpy.data.objects if o.users_scene)
+        keep_hand_moves([o for o in objs if has_rest(o)])
         for o in sorted(objs, key=depth):
             if has_rest(o):
                 o.matrix_world.translation = Vector(o[KEY])
                 if o.children:
-                    context.view_layer.update()
+                    o.users_scene[0].view_layers[0].update()
             remove_key(o)
 
         # Remove ALL explode data from ALL objects (not just exploded ones)
@@ -300,11 +293,9 @@ class OBJECT_OT_explode_reset(bpy.types.Operator):
         for sc in bpy.data.scenes:
             for k in traces(sc):
                 del sc[k]
-            if "_explode_mid" in sc:  # legacy: remove old centre data from files made with earlier versions
-                del sc["_explode_mid"]
 
-        # Set slider to 0 without triggering update callback (nothing left to restore)
-        context.scene.explode_factor = 0.0
+        for sc in bpy.data.scenes:
+            sc.mk_explode_factor = 0.0
         return {'FINISHED'}
 
 
@@ -312,33 +303,21 @@ def draw(layout, context):
     col = layout.column()
     row = col.row()
     row.active = bool(targets(context))  # greyed out while there is nothing for it to move
-    row.prop(context.scene, "explode_factor", slider=True)
-    col.operator("object.explode_reset")
+    row.prop(context.scene, "mk_explode_factor", slider=True)
+    col.prop(context.scene, "mk_explode_selected_only")
+    col.operator("modelerkit.explode_reset")
 
 
-classes = (OBJECT_OT_explode_reset,)
+classes = (MODELERKIT_OT_explode_reset,)
 
 
 def register():
-    bpy.types.Scene.explode_factor = bpy.props.FloatProperty(
+    bpy.types.Scene.mk_explode_factor = bpy.props.FloatProperty(
         name="Explode", min=0.0, max=10.0, soft_max=5.0, default=0.0, update=update,
         description="1 = parts about one part-size apart; higher spreads them further")
-    bpy.types.Scene.explode_direction = bpy.props.EnumProperty(
-        name="Direction", items=[
-            ('X', "Along X", "Parts line up along world X axis"),
-            ('Y', "Along Y", "Parts line up along world Y axis"),
-            ('Z', "Along Z", "Parts line up along world Z axis"),
-        ], default='X', update=update,
-        description="How parts move apart")
-    bpy.types.Scene.explode_anchor = bpy.props.BoolProperty(
-        name="Keep Active Part in Place", default=False, update=update,
-        description="When on, the active object stays at rest and others move relative to it")
-    bpy.types.Scene.explode_selected_only = bpy.props.BoolProperty(
+    bpy.types.Scene.mk_explode_selected_only = bpy.props.BoolProperty(
         name="Selected Only", default=False,
         description="Move only the selected meshes instead of every visible mesh")
-    bpy.types.Scene.explode_islands = bpy.props.BoolProperty(
-        name="Also Split Mesh Pieces", default=True,
-        description="Also move the loose parts inside each mesh apart", update=update)
     for c in classes:
         bpy.utils.register_class(c)
 
@@ -346,5 +325,5 @@ def register():
 def unregister():
     for c in reversed(classes):
         bpy.utils.unregister_class(c)
-    for p in ("explode_factor", "explode_direction", "explode_anchor", "explode_selected_only", "explode_islands"):
+    for p in ("mk_explode_factor", "mk_explode_selected_only"):
         delattr(bpy.types.Scene, p)

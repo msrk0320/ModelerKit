@@ -20,14 +20,14 @@ NODE_PREFIX = "SPLink_"
 
 
 def _folder(context):
-    path = context.scene.sp_texture_folder
+    path = context.scene.mk_sp_texture_folder
     return os.path.normpath(bpy.path.abspath(path)) if path else ""
 
 
 def _folder_problem(context):
     """Why the texture folder can't be used, or "" when it can. An unsaved .blend would read "//" as the folder
     Blender was launched from."""
-    if context.scene.sp_texture_folder.startswith("//") and not bpy.data.filepath:
+    if context.scene.mk_sp_texture_folder.startswith("//") and not bpy.data.filepath:
         return "Save the .blend first, or pick a texture folder"
     folder = _folder(context)
     return "" if os.path.isdir(folder) else "Texture folder not found: %s" % folder
@@ -113,8 +113,8 @@ def _wire(mat, maps):
             nt.links.new(tex.outputs["Color"], bsdf.inputs[socket])
 
 
-class SPLINK_OT_import(bpy.types.Operator):
-    bl_idname = "splink.import_textures"
+class MODELERKIT_OT_import(bpy.types.Operator):
+    bl_idname = "modelerkit.import_textures"
     bl_label = "Import Textures"
     bl_description = ("Wire <Material>_BaseColor/Roughness/Metallic/Normal/Transmissive "
                       "into the Principled BSDF of each material with a matching name "
@@ -153,8 +153,8 @@ class SPLINK_OT_import(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class SPLINK_OT_reload(bpy.types.Operator):
-    bl_idname = "splink.reload_textures"
+class MODELERKIT_OT_reload(bpy.types.Operator):
+    bl_idname = "modelerkit.reload_textures"
     bl_label = "Reload Textures"
     bl_description = "Re-read from disk every image loaded from the texture folder"
 
@@ -165,7 +165,7 @@ class SPLINK_OT_reload(bpy.types.Operator):
             return {"CANCELLED"}
         folder = _folder(context)
 
-        count = 0
+        count, missing = 0, []
         for img in bpy.data.images:
             if img.source != "FILE" or not img.filepath:
                 continue
@@ -174,6 +174,9 @@ class SPLINK_OT_reload(bpy.types.Operator):
                 continue
             if img.packed_file:
                 continue  # packed images would reload the packed copy, not the new export
+            if not os.path.exists(path):
+                missing.append(os.path.basename(path))
+                continue  # keep the pixels in memory: reloading would turn the texture pink
             img.reload()
             count += 1
 
@@ -181,26 +184,31 @@ class SPLINK_OT_reload(bpy.types.Operator):
             for area in window.screen.areas:
                 area.tag_redraw()
 
-        if count == 0:
+        if count == 0 and not missing:
             self.report({"WARNING"}, "No loaded images come from this folder - use Import Textures first")
             return {"CANCELLED"}
-        self.report({"INFO"}, "Reloaded %d texture(s)" % count)
+        msg = "Reloaded %d texture(s)" % count
+        if missing:
+            msg += "; missing from the folder: %s" % ", ".join(missing)
+        self.report({"WARNING"} if missing else {"INFO"}, msg)
+        if count == 0:
+            return {"CANCELLED"}
         return {"FINISHED"}
 
 
 def draw(layout, context):
     col = layout.column(align=True)
-    col.prop(context.scene, "sp_texture_folder", text="")
+    col.prop(context.scene, "mk_sp_texture_folder", text="")
     col.separator()
-    col.operator(SPLINK_OT_reload.bl_idname, icon="FILE_REFRESH")
-    col.operator(SPLINK_OT_import.bl_idname, icon="IMPORT")
+    col.operator(MODELERKIT_OT_reload.bl_idname, icon="FILE_REFRESH")
+    col.operator(MODELERKIT_OT_import.bl_idname, icon="IMPORT")
 
 
-CLASSES = (SPLINK_OT_import, SPLINK_OT_reload)
+CLASSES = (MODELERKIT_OT_import, MODELERKIT_OT_reload)
 
 
 def register():
-    bpy.types.Scene.sp_texture_folder = bpy.props.StringProperty(
+    bpy.types.Scene.mk_sp_texture_folder = bpy.props.StringProperty(
         name="Texture Folder",
         description="Folder Painter exported into (<spp folder>\\<spp name>\\Textures)",
         subtype="DIR_PATH",
@@ -213,4 +221,4 @@ def register():
 def unregister():
     for c in reversed(CLASSES):
         bpy.utils.unregister_class(c)
-    del bpy.types.Scene.sp_texture_folder
+    del bpy.types.Scene.mk_sp_texture_folder

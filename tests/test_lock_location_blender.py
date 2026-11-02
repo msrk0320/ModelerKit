@@ -27,7 +27,7 @@ class LockLocationTests(unittest.TestCase):
         lock_location.unregister()
 
     def toggle(self):
-        return bpy.ops.madplugin.toggle_lock_location()
+        return bpy.ops.modelerkit.toggle_lock_location()
 
     def test_locks_all_three_axes_of_selected_only(self):
         self.toggle()
@@ -45,10 +45,18 @@ class LockLocationTests(unittest.TestCase):
         self.toggle()
         self.assertEqual(tuple(self.a.lock_location), (True, True, True))
 
+    def test_locks_and_unlocks_the_children_of_a_selected_parent(self):
+        grandchild, child = cube("grandchild", False), cube("child", False)
+        child.parent, grandchild.parent = self.a, child
+        self.toggle()
+        self.assertEqual(tuple(grandchild.lock_location), (True, True, True))
+        self.toggle()
+        self.assertEqual(tuple(grandchild.lock_location), (False, False, False))
+
     def test_nothing_selected_is_refused(self):
         self.a.select_set(False)
         self.b.select_set(False)
-        self.assertFalse(bpy.ops.madplugin.toggle_lock_location.poll())
+        self.assertFalse(bpy.ops.modelerkit.toggle_lock_location.poll())
 
 
 if __name__ == "__main__":

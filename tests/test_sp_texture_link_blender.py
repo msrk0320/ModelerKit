@@ -18,7 +18,7 @@ class SpTextureLinkTests(unittest.TestCase):
         sp_texture_link.unregister()
 
     def test_unsaved_blend_with_default_folder_asks_to_save_instead_of_scanning_the_launch_folder(self):
-        for op in (bpy.ops.splink.import_textures, bpy.ops.splink.reload_textures):
+        for op in (bpy.ops.modelerkit.import_textures, bpy.ops.modelerkit.reload_textures):
             with self.assertRaisesRegex(RuntimeError, "Save the .blend"):
                 op()
 

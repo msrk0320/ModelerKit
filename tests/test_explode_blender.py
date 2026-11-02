@@ -99,7 +99,7 @@ def ui():
 
 def slide(f):
     """Move the slider the way the sidebar does: set it, then push an undo step."""
-    bpy.context.scene.explode_factor = f
+    bpy.context.scene.mk_explode_factor = f
     with ui():
         bpy.ops.ed.undo_push(message="Explode")
 
@@ -140,7 +140,7 @@ class SliderTests(ExplodeBase):
 
     def test_selected_only_moves_just_the_selection(self):
         a, b, c = part("a", (0, 0, 0)), part("b", (2, 0, 0)), part("c", (5, 0, 0))
-        self.sc.explode_selected_only = True
+        self.sc.mk_explode_selected_only = True
         select(a, b)
         target = expected([a, b], 1.0)
         c_rest = pos(c)
@@ -157,22 +157,6 @@ class SliderTests(ExplodeBase):
         self.assertNotEqual([round(v.x, 4) for v in shown(multi)], [round(v.x, 4) for v in before])
         slide(0.0)
         self.assertEqual([round(v.x, 4) for v in shown(multi)], [round(v.x, 4) for v in before])
-
-    def test_unticking_split_pieces_puts_the_pieces_back(self):
-        multi = part("multi", (0, 0, 0), pieces=2)
-        part("other", (4, 0, 0))
-        before = shown(multi)
-        slide(1.0)
-        self.sc.explode_islands = False
-        for a, b in zip(shown(multi), before):
-            self.assertNear(a, b)
-
-    def test_split_pieces_off_never_builds_piece_data(self):
-        multi = part("multi", (0, 0, 0), pieces=2)
-        part("other", (4, 0, 0))
-        self.sc.explode_islands = False
-        slide(1.0)
-        self.assertIsNone(multi.data.shape_keys)
 
     def test_child_and_parent_both_land_where_expected_and_come_back(self):
         child = part("A_child", (0, 0, 0))                   # first in the scene, so updated before its parent
@@ -207,7 +191,7 @@ class SliderTests(ExplodeBase):
         self.assertEqual(len(a.data.shape_keys.key_blocks), 2)    # one Explode key on the shared mesh
         self.assertEqual(shown(a), shown(b))
         slide(0.0)
-        self.assertAlmostEqual(explode_key(a).value, 0.0)
+        self.assertIsNone(explode_key(a))
 
     def test_non_mesh_objects_are_left_alone(self):
         a, b = part("a", (0, 0, 0)), part("b", (2, 0, 0))
@@ -217,7 +201,7 @@ class SliderTests(ExplodeBase):
         curve = bpy.data.objects.new("curve", bpy.data.curves.new("curve", 'CURVE'))
         curve.location = (0, 9, 0)
         self.sc.collection.objects.link(curve)
-        self.sc.explode_selected_only = True
+        self.sc.mk_explode_selected_only = True
         select(a, b, empty, curve)
         target = expected([a, b], 1.0)
         slide(1.0)
@@ -228,7 +212,7 @@ class SliderTests(ExplodeBase):
 
     def test_empty_selection_moves_nothing(self):
         a, b = part("a", (0, 0, 0)), part("b", (2, 0, 0))
-        self.sc.explode_selected_only = True
+        self.sc.mk_explode_selected_only = True
         select()
         slide(1.0)
         self.assertNear(pos(a), (0, 0, 0))
@@ -323,8 +307,8 @@ class ActionTests(ExplodeBase):
         slide(1.5)
         # Also give b the _explode_ignore key (like Finish used to do)
         b["_explode_ignore"] = True
-        press(bpy.ops.object.explode_reset)
-        self.assertEqual(self.sc.explode_factor, 0.0)
+        press(bpy.ops.modelerkit.explode_reset)
+        self.assertEqual(self.sc.mk_explode_factor, 0.0)
         self.assertNear(pos(multi), (0, 0, 0))
         self.assertNear(pos(b), (4, 0, 0))
         for p, q in zip(shown(multi), before):
@@ -338,18 +322,18 @@ class ActionTests(ExplodeBase):
     def test_reset_includes_meshes_outside_the_current_selection(self):
         multi, b = part("multi", (0, 0, 0), pieces=2), part("b", (4, 0, 0))
         before = shown(multi)
-        self.sc.explode_selected_only = True
+        self.sc.mk_explode_selected_only = True
         select(multi, b)
         slide(1.0)
         select(b)
-        press(bpy.ops.object.explode_reset)
+        press(bpy.ops.modelerkit.explode_reset)
         self.assertNear(pos(multi), (0, 0, 0))
         for p, q in zip(shown(multi), before):
             self.assertNear(p, q)
 
     def test_reset_leaves_a_fresh_copy_where_it_is(self):
         a, b = part("a", (0, 0, 0)), part("b", (2, 0, 0))
-        self.sc.explode_selected_only = True
+        self.sc.mk_explode_selected_only = True
         select(a, b)
         slide(1.0)
         dup = a.copy()                                     # carries a's rest data until the slider moves
@@ -357,7 +341,7 @@ class ActionTests(ExplodeBase):
         dup.location = (0, 7, 0)
         select(a, b)
         bpy.context.view_layer.update()
-        press(bpy.ops.object.explode_reset)
+        press(bpy.ops.modelerkit.explode_reset)
         self.assertNear(pos(a), (0, 0, 0))
         self.assertNear(pos(dup), (0, 7, 0))
 
@@ -370,7 +354,7 @@ class ActionTests(ExplodeBase):
         self.assertIn("_explode_ignore", c)
         # Select only a and b
         select(a, b)
-        press(bpy.ops.object.explode_reset)
+        press(bpy.ops.modelerkit.explode_reset)
         # c should be reset even though it's hidden and has _explode_ignore
         self.assertNear(pos(c), (4, 0, 0))
         self.assertNotIn("_explode_ignore", c)
@@ -380,13 +364,13 @@ class ActionTests(ExplodeBase):
     def test_reset_disabled_when_there_is_nothing_to_reset(self):
         a, b = part("a", (0, 0, 0)), part("b", (2, 0, 0))
         with ui():
-            self.assertFalse(bpy.ops.object.explode_reset.poll())
+            self.assertFalse(bpy.ops.modelerkit.explode_reset.poll())
         slide(1.0)
         with ui():
-            self.assertTrue(bpy.ops.object.explode_reset.poll())
-        press(bpy.ops.object.explode_reset)
+            self.assertTrue(bpy.ops.modelerkit.explode_reset.poll())
+        press(bpy.ops.modelerkit.explode_reset)
         with ui():
-            self.assertFalse(bpy.ops.object.explode_reset.poll())
+            self.assertFalse(bpy.ops.modelerkit.explode_reset.poll())
 
     def test_reset_waits_for_object_mode(self):
         multi = part("multi", (0, 0, 0), pieces=2)
@@ -397,7 +381,7 @@ class ActionTests(ExplodeBase):
         bpy.ops.object.mode_set(mode='EDIT')               # leaving it writes the edit cage over our shape keys
         try:
             with ui():
-                self.assertFalse(bpy.ops.object.explode_reset.poll())
+                self.assertFalse(bpy.ops.modelerkit.explode_reset.poll())
         finally:
             bpy.ops.object.mode_set(mode='OBJECT')
 
@@ -420,7 +404,7 @@ class Recorder:
 
 
 class DirectionTests(ExplodeBase):
-    """Test the new explode_direction and explode_anchor features."""
+    """Layout along X."""
 
     def test_nested_boxes_separate_along_x_axis(self):
         """Nested boxes (1.4 mm apart on X) should separate when direction is X."""
@@ -430,7 +414,6 @@ class DirectionTests(ExplodeBase):
         inner = part("inner", (0.0014, 0, 0))
         inner.scale = (0.239, 0.029, 0.079)
         bpy.context.view_layer.update()
-        self.sc.explode_direction = 'X'
         slide(1.0)
         outer_pos = pos(outer).x
         inner_pos = pos(inner).x
@@ -442,7 +425,6 @@ class DirectionTests(ExplodeBase):
         a = part("a", (0, 0, 0))
         b = part("b", (1, 0, 0))
         c = part("c", (5, 0, 0))
-        self.sc.explode_direction = 'X'
         slide(1.0)
         self.assertLess(pos(a).x, pos(b).x)
         self.assertLess(pos(b).x, pos(c).x)
@@ -454,7 +436,6 @@ class DirectionTests(ExplodeBase):
         a = part("a", (0, 0, 0))
         b = part("b", (1, 0, 0))
         c = part("c", (5, 0, 0))
-        self.sc.explode_direction = 'X'
         slide(0.01)
         for o, x in ((a, 0), (b, 1), (c, 5)):
             self.assertLess(abs(pos(o).x - x), 0.05, o.name)
@@ -469,65 +450,13 @@ class DirectionTests(ExplodeBase):
         self.assertAlmostEqual(a[ex.KEY_S], 3.0, places=4)
         self.assertAlmostEqual(b[ex.KEY_S], 1.0, places=4)
 
-    def test_direction_change_relays_parts_immediately(self):
-        """Changing explode_direction should immediately re-layout parts."""
-        a = part("a", (0, 0, 0))
-        b = part("b", (0, 1, 0))
-        self.sc.explode_direction = 'X'
-        slide(1.0)
-        x_pos = pos(a)
-        self.sc.explode_direction = 'Y'
-        y_pos = pos(a)
-        # Position should change when direction changes
-        self.assertNotEqual(tuple(x_pos), tuple(y_pos),
-                           msg="Changing direction should re-layout immediately")
-
-    def test_anchor_change_relays_parts_immediately(self):
-        """Changing explode_anchor should immediately re-layout parts."""
-        a = part("a", (0, 0, 0))
-        b = part("b", (1, 0, 0))
-        bpy.context.view_layer.objects.active = a
-        select(a, b)
-        slide(1.0)
-        pos_before = pos(a)
-        self.sc.explode_anchor = True
-        pos_after = pos(a)
-        self.assertNear(pos_after, (0, 0, 0))
-
-    def test_anchor_keeps_active_part_in_place_along_x(self):
-        """Sleeve stays, tray slides out: the active part keeps its rest position, the others keep their spacing."""
-        a = part("a", (0, 0, 0))
-        b = part("b", (1, 0, 0))
-        c = part("c", (5, 0, 0))
-        slide(1.0)
-        free = [pos(o) for o in (a, b, c)]
-        bpy.context.view_layer.objects.active = b
-        self.sc.explode_anchor = True
-        self.assertNear(pos(b), (1, 0, 0))
-        shift = free[1] - Vector((1, 0, 0))
-        for o, before in zip((a, c), (free[0], free[2])):
-            self.assertNear(pos(o), before - shift)
-
-    def test_anchor_ignored_when_active_is_not_moving(self):
-        a = part("a", (0, 0, 0))
-        b = part("b", (1, 0, 0))
-        lamp = bpy.data.objects.new("lamp", None)
-        bpy.context.scene.collection.objects.link(lamp)
-        slide(1.0)
-        free = [pos(a), pos(b)]
-        bpy.context.view_layer.objects.active = lamp
-        self.sc.explode_anchor = True
-        self.assertNear(pos(a), free[0])
-        self.assertNear(pos(b), free[1])
-
     def test_explode_size_data_cleared_on_reset(self):
         """_explode_size should be removed by Reset."""
         a = part("a", (0, 0, 0))
         b = part("b", (1, 0, 0))
-        self.sc.explode_direction = 'X'
         slide(1.0)
         self.assertIn("_explode_size", a)
-        press(bpy.ops.object.explode_reset)
+        press(bpy.ops.modelerkit.explode_reset)
         self.assertNotIn("_explode_size", a)
         self.assertNotIn("_explode_size", b)
 
@@ -535,23 +464,11 @@ class DirectionTests(ExplodeBase):
         """_explode_size should be removed by Reset."""
         a = part("a", (0, 0, 0))
         b = part("b", (1, 0, 0))
-        self.sc.explode_direction = 'X'
         slide(1.0)
         self.assertIn("_explode_size", a)
-        press(bpy.ops.object.explode_reset)
+        press(bpy.ops.modelerkit.explode_reset)
         self.assertNotIn("_explode_size", a)
         self.assertNotIn("_explode_size", b)
-
-    def test_default_direction_is_x(self):
-        """A fresh scene should have explode_direction set to 'X'."""
-        self.assertEqual(self.sc.explode_direction, 'X')
-
-    def test_direction_enum_has_only_x_y_z(self):
-        """The enum property should only have X, Y, Z items (no CENTRE)."""
-        rna_type = bpy.types.Scene.bl_rna
-        prop = rna_type.properties['explode_direction']
-        items = [item.identifier for item in prop.enum_items]
-        self.assertEqual(items, ['X', 'Y', 'Z'])
 
     def test_reset_removes_legacy_explode_mid_key(self):
         """Reset should clean up old _explode_mid keys from older file versions."""
@@ -561,7 +478,7 @@ class DirectionTests(ExplodeBase):
         # Simulate a file from an older version that has _explode_mid
         self.sc["_explode_mid"] = (0.5, 0, 0)
         self.assertIn("_explode_mid", self.sc)
-        press(bpy.ops.object.explode_reset)
+        press(bpy.ops.modelerkit.explode_reset)
         self.assertNotIn("_explode_mid", self.sc)
 
 
@@ -574,15 +491,6 @@ def world_pieces(o):
 class PiecesAlongAxisTests(ExplodeBase):
     """Loose pieces move along the chosen world axis, whatever the object's rotation or mirror (SDNA files keep the
     right-hand parts at scale -0.1, which used to send their pieces the wrong way)."""
-
-    def test_pieces_do_not_move_off_the_chosen_axis(self):
-        o = part("multi", (0, 0, 0), pieces=3)  # pieces side by side on X
-        before = world_pieces(o)
-        self.sc.explode_direction = 'Z'
-        slide(2.0)
-        for a, b in zip(before, world_pieces(o)):
-            self.assertAlmostEqual(a.x, b.x, places=5)
-            self.assertAlmostEqual(a.y, b.y, places=5)
 
     def test_mirrored_object_pieces_move_outward_along_world_x(self):
         o = part("right", (-4, 0, 0), pieces=2)
@@ -598,83 +506,23 @@ class PiecesAlongAxisTests(ExplodeBase):
             self.assertAlmostEqual(a.y, b.y, places=5)
             self.assertAlmostEqual(a.z, b.z, places=5)
 
-    def test_rotated_object_pieces_follow_the_world_axis(self):
-        o = part("rotated", (0, 0, 0), pieces=3)
-        o.rotation_euler = (0, 0, 1.5707963267948966)  # pieces now lie along world Y
-        bpy.context.view_layer.update()
-        before = world_pieces(o)
-        self.sc.explode_direction = 'Y'
-        slide(1.0)
-        after = world_pieces(o)
-        self.assertGreater(max(abs(a.y - b.y) for a, b in zip(before, after)), 0.5)
-        for a, b in zip(before, after):
-            self.assertAlmostEqual(a.x, b.x, places=5)
-            self.assertAlmostEqual(a.z, b.z, places=5)
-
-    def test_direction_change_rebuilds_the_pieces_for_the_new_axis(self):
-        o = part("multi", (0, 0, 0), pieces=2)
-        o.rotation_euler = (0, 1.5707963267948966, 0)  # pieces now lie along world Z
-        bpy.context.view_layer.update()
-        before = world_pieces(o)
-        slide(1.0)
-        self.assertEqual([round(p.z, 4) for p in world_pieces(o)], [round(p.z, 4) for p in before])  # X: no room
-        self.sc.explode_direction = 'Z'
-        self.assertEqual(o.data.shape_keys["_explode_axis"], 'Z')
-        after = world_pieces(o)
-        self.assertNotEqual([round(p.z, 4) for p in after], [round(p.z, 4) for p in before])
-        for a, b in zip(before, after):
-            self.assertAlmostEqual(a.x, b.x, places=5)
-
-    def test_reset_removes_the_axis_note(self):
-        o = part("multi", (0, 0, 0), pieces=2)
-        o.data.shape_keys or o.shape_key_add(name="Basis")
-        o.shape_key_add(name="Smile")  # another key keeps the shape key block alive after Reset
-        slide(1.0)
-        self.assertIn("_explode_axis", o.data.shape_keys)
-        press(bpy.ops.object.explode_reset)
-        self.assertNotIn("_explode_axis", o.data.shape_keys)
-
-
 class TwinTests(ExplodeBase):
-    def test_left_and_right_parts_move_together_along_z(self):
-        """Temples or lenses at the same height, apart on X: one rank, same offset, so they stay a pair."""
-        left, right = part("temple_left", (3, 0, 0)), part("temple_right", (-3, 0, 0))
-        front = part("front", (0, 0, 2))
-        self.sc.explode_direction = 'Z'
-        slide(1.0)
-        self.assertAlmostEqual(left.matrix_world.translation.z, right.matrix_world.translation.z, places=5)
-        self.assertLess(left.matrix_world.translation.z, 0)
-        self.assertGreater(front.matrix_world.translation.z, 2)
-
     def test_overlapping_parts_at_the_same_place_still_separate(self):
         outer, inner = part("outer", (0, 0, 0)), part("inner", (0, 0, 0))
         inner.scale = (0.5, 0.5, 0.5)
         bpy.context.view_layer.update()
-        self.sc.explode_direction = 'Z'
         slide(1.0)
-        self.assertNotAlmostEqual(outer.matrix_world.translation.z, inner.matrix_world.translation.z, places=3)
+        self.assertNotAlmostEqual(outer.matrix_world.translation.x, inner.matrix_world.translation.x, places=3)
 
 
 class PanelTests(ExplodeBase):
     def test_panel_only_has_reset_button(self):
         layout = Recorder()
         ex.draw(layout, bpy.context)
-        self.assertEqual(set(layout.ops), {"object.explode_reset"})
+        self.assertEqual(set(layout.ops), {"modelerkit.explode_reset"})
         for idname in layout.ops:
             group, name = idname.split(".")
             getattr(getattr(bpy.ops, group), name).get_rna_type()  # raises if not registered
-
-    def test_removed_operators_are_not_registered(self):
-        # Keep, Finish, Wipe and menu are deleted; only Reset remains
-        self.assertFalse(hasattr(bpy.types, "OBJECT_OT_explode_keep"))
-        self.assertFalse(hasattr(bpy.types, "OBJECT_OT_explode_finish"))
-        self.assertFalse(hasattr(bpy.types, "OBJECT_OT_explode_wipe"))
-        self.assertFalse(hasattr(bpy.types, "VIEW3D_MT_explode"))
-
-    def test_remove_mesh_piece_data_is_gone(self):
-        # Unticking Also Split Mesh Pieces puts pieces back; Reset clears the data.
-        self.assertFalse(hasattr(bpy.types, "OBJECT_OT_explode_remove_islands"))
-
 
 class UndoTests(ExplodeBase):
     ACTIONS = [("explode_reset", {})]
@@ -690,11 +538,11 @@ class UndoTests(ExplodeBase):
                 slide(1.0)
                 where = {o.name: pos(o) for o in (multi, b)}
                 look = shown(multi)
-                press(getattr(bpy.ops.object, name), **props)
+                press(getattr(bpy.ops.modelerkit, name), **props)
                 with ui():
                     bpy.ops.ed.undo()
                 multi = bpy.data.objects["multi"]
-                self.assertEqual(bpy.context.scene.explode_factor, 1.0)
+                self.assertEqual(bpy.context.scene.mk_explode_factor, 1.0)
                 self.assertAt(where)
                 for p, q in zip(shown(multi), look):
                     self.assertNear(p, q)
@@ -714,7 +562,7 @@ class SaveReloadTests(ExplodeBase):
     def test_exploded_state_survives_save_and_reload(self):
         multi, b, c = part("multi", (0, 0, 0), pieces=2), part("b", (4, 0, 0)), part("c", (0, 4, 0))
         before = shown(multi)
-        self.sc.explode_selected_only = True
+        self.sc.mk_explode_selected_only = True
         select(multi, b, c)
         slide(1.25)
         where = {o.name: pos(o) for o in (multi, b, c)}
@@ -722,8 +570,8 @@ class SaveReloadTests(ExplodeBase):
         bpy.ops.wm.save_as_mainfile(filepath=blend)
         bpy.ops.wm.open_mainfile(filepath=blend)
         sc = bpy.context.scene
-        self.assertEqual(sc.explode_factor, 1.25)
-        self.assertTrue(sc.explode_selected_only)
+        self.assertEqual(sc.mk_explode_factor, 1.25)
+        self.assertTrue(sc.mk_explode_selected_only)
         self.assertAt(where)
         multi = bpy.data.objects["multi"]
         self.assertAlmostEqual(explode_key(multi).value, 1.25)
@@ -742,12 +590,12 @@ class QaRegressionTests(ExplodeBase):
         root, ref = part("root", (0, 0, 0)), part("ref", (10, 0, 0))
         child = part("child", (3, 0, 0))
         child.parent = root
-        self.sc.explode_selected_only = True
+        self.sc.mk_explode_selected_only = True
         select(root, ref)
         slide(3.0)
         select(child)
         slide(2.0)
-        press(bpy.ops.object.explode_reset)
+        press(bpy.ops.modelerkit.explode_reset)
         self.assertNear(pos(child), (3, 0, 0))
 
     def test_unmoved_part_between_moved_parts_in_a_chain_comes_back(self):
@@ -757,14 +605,14 @@ class QaRegressionTests(ExplodeBase):
         p1.location, p2.location = (3, 0, 0), (3, 0, 0)
         bpy.context.view_layer.update()
         rest = {o.name: pos(o) for o in (p0, p1, p2, ref)}
-        self.sc.explode_selected_only = True
+        self.sc.mk_explode_selected_only = True
         select(p0, p2, ref)
         slide(3.0)
         slide(0.0)
         for o in (p0, p1, p2, ref):
             self.assertNear(pos(o), rest[o.name])
         slide(3.0)
-        press(bpy.ops.object.explode_reset)
+        press(bpy.ops.modelerkit.explode_reset)
         for o in (p0, p1, p2, ref):
             self.assertNear(pos(o), rest[o.name])
 
@@ -772,7 +620,7 @@ class QaRegressionTests(ExplodeBase):
         root, ref = part("root", (0, 0, 0)), part("ref", (10, 0, 0))
         child = part("child", (3, 0, 0))
         child.parent = root
-        self.sc.explode_selected_only = True
+        self.sc.mk_explode_selected_only = True
         select(root, ref)
         slide(3.0)
         parent_at = pos(root)
@@ -781,9 +629,62 @@ class QaRegressionTests(ExplodeBase):
         slide(0.0)  # the child is back at rest; its parent is still displaced, so it must ride along
         self.assertNear(pos(child) - pos(root), (3, 0, 0))
         self.assertNear(pos(root), parent_at)
-        press(bpy.ops.object.explode_reset)
+        press(bpy.ops.modelerkit.explode_reset)
         self.assertNear(pos(root), (0, 0, 0))
         self.assertNear(pos(child), (3, 0, 0))
+
+    def test_reset_from_another_scene_still_restores_the_parts(self):
+        x, y = part("x", (0, 0, 0)), part("y", (5, 0, 0))
+        first = bpy.context.scene
+        slide(3.0)
+        window = bpy.context.window_manager.windows[0]
+        window.scene = bpy.data.scenes.new("Other")
+        press(bpy.ops.modelerkit.explode_reset)
+        window.scene = first
+        bpy.context.view_layer.update()
+        self.assertNear(pos(x), (0, 0, 0))
+        self.assertNear(pos(y), (5, 0, 0))
+        self.assertEqual(first.mk_explode_factor, 0.0)
+
+    def test_part_moved_by_hand_while_exploded_keeps_the_move(self):
+        x, y = part("x", (0, 0, 0)), part("y", (5, 0, 0))
+        slide(2.0)
+        x.location.y += 7
+        bpy.context.view_layer.update()
+        slide(3.0)
+        self.assertAlmostEqual(pos(x).y, 7, places=4)
+        slide(0.0)
+        self.assertNear(pos(x), (0, 7, 0), places=4)
+        self.assertNear(pos(y), (5, 0, 0), places=4)
+
+    def test_part_moved_by_hand_while_exploded_keeps_the_move_on_reset(self):
+        x, y = part("x", (0, 0, 0)), part("y", (5, 0, 0))
+        slide(2.0)
+        x.location.y += 7
+        bpy.context.view_layer.update()
+        press(bpy.ops.modelerkit.explode_reset)
+        self.assertNear(pos(x), (0, 7, 0), places=4)
+
+    def test_parent_moved_by_hand_while_exploded_takes_its_children_along(self):
+        root, ref = part("root", (0, 0, 0)), part("ref", (10, 0, 0))
+        child = part("child", (3, 0, 0))
+        child.parent = root
+        bpy.context.view_layer.update()
+        slide(2.0)
+        root.location.y += 7
+        bpy.context.view_layer.update()
+        slide(0.0)
+        self.assertNear(pos(root), (0, 7, 0), places=4)
+        self.assertNear(pos(child), (3, 7, 0), places=4)
+        self.assertNear(pos(ref), (10, 0, 0), places=4)
+
+    def test_slider_at_zero_leaves_no_shape_key_behind(self):
+        o = part("hinge", (0, 0, 0), pieces=2)
+        slide(2.0)
+        self.assertIsNotNone(o.data.shape_keys)
+        slide(0.0)
+        self.assertIsNone(o.data.shape_keys)
+        self.assertFalse(o.use_shape_key_edit_mode)
 
     def test_hidden_part_goes_back_with_the_slider(self):
         objs = [part("a", (0, 0, 0)), part("b", (6, 0, 0)), part("c", (12, 0, 0))]
@@ -798,7 +699,7 @@ class QaRegressionTests(ExplodeBase):
             o = part("hinge_" + name, (0, 0, 0), pieces=2)
             o.shape_key_add(name=name, from_mix=False)
             slide(2.0)
-            press(bpy.ops.object.explode_reset)
+            press(bpy.ops.modelerkit.explode_reset)
             self.assertEqual([k.name for k in o.data.shape_keys.key_blocks], [name])
             slide(0.0)
 
@@ -806,7 +707,7 @@ class QaRegressionTests(ExplodeBase):
         o = part("hinge", (0, 0, 0), pieces=2)
         slide(2.0)
         self.assertTrue(o.use_shape_key_edit_mode)
-        press(bpy.ops.object.explode_reset)
+        press(bpy.ops.modelerkit.explode_reset)
         self.assertFalse(o.use_shape_key_edit_mode)
         self.assertIsNone(o.data.shape_keys)
 
