@@ -26,22 +26,14 @@ class MADPLUGIN_OT_toggle_lock_location(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class VIEW3D_PT_madplugin_lock_location(bpy.types.Panel):
-    bl_label = "Lock Location"
-    bl_idname = "VIEW3D_PT_madplugin_lock_location"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Modeler Kit"
-    bl_order = 6
-
-    def draw(self, context):
-        locked = _all_locked(context.selected_objects)
-        self.layout.operator(MADPLUGIN_OT_toggle_lock_location.bl_idname,
-                             text="Locked" if locked else "Lock Location",
-                             icon="LOCKED" if locked else "UNLOCKED", depress=locked)
+def draw(layout, context):
+    locked = _all_locked(context.selected_objects)
+    layout.operator(MADPLUGIN_OT_toggle_lock_location.bl_idname,
+                         text="Locked" if locked else "Lock Location",
+                         icon="LOCKED" if locked else "UNLOCKED", depress=locked)
 
 
-classes = (MADPLUGIN_OT_toggle_lock_location, VIEW3D_PT_madplugin_lock_location)
+classes = (MADPLUGIN_OT_toggle_lock_location,)
 
 
 def register():

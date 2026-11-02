@@ -658,7 +658,7 @@ class TwinTests(ExplodeBase):
 class PanelTests(ExplodeBase):
     def test_panel_only_has_reset_button(self):
         layout = Recorder()
-        ex.VIEW3D_PT_explode.draw(type("Panel", (), {"layout": layout})(), bpy.context)
+        ex.draw(layout, bpy.context)
         self.assertEqual(set(layout.ops), {"object.explode_reset"})
         for idname in layout.ops:
             group, name = idname.split(".")

@@ -177,22 +177,15 @@ class SPLINK_OT_reload(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class SPLINK_PT_panel(bpy.types.Panel):
-    bl_label = "SP Textures"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Modeler Kit"
-    bl_order = 3
-
-    def draw(self, context):
-        col = self.layout.column(align=True)
-        col.prop(context.scene, "sp_texture_folder", text="")
-        col.separator()
-        col.operator(SPLINK_OT_reload.bl_idname, icon="FILE_REFRESH")
-        col.operator(SPLINK_OT_import.bl_idname, icon="IMPORT")
+def draw(layout, context):
+    col = layout.column(align=True)
+    col.prop(context.scene, "sp_texture_folder", text="")
+    col.separator()
+    col.operator(SPLINK_OT_reload.bl_idname, icon="FILE_REFRESH")
+    col.operator(SPLINK_OT_import.bl_idname, icon="IMPORT")
 
 
-CLASSES = (SPLINK_OT_import, SPLINK_OT_reload, SPLINK_PT_panel)
+CLASSES = (SPLINK_OT_import, SPLINK_OT_reload)
 
 
 def register():

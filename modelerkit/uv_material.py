@@ -92,21 +92,13 @@ class MADPLUGIN_OT_name_materials_from_root(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class VIEW3D_PT_madplugin_uv_material(bpy.types.Panel):
-    bl_label = "UV & Material Names"
-    bl_idname = "VIEW3D_PT_madplugin_uv_material"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Modeler Kit"
-    bl_order = 7
-
-    def draw(self, context):
-        col = self.layout.column(align=True)
-        col.operator(MADPLUGIN_OT_single_uv_map.bl_idname, icon="UV")
-        col.operator(MADPLUGIN_OT_name_materials_from_root.bl_idname, icon="MATERIAL")
+def draw(layout, context):
+    col = layout.column(align=True)
+    col.operator(MADPLUGIN_OT_single_uv_map.bl_idname, icon="UV")
+    col.operator(MADPLUGIN_OT_name_materials_from_root.bl_idname, icon="MATERIAL")
 
 
-classes = (MADPLUGIN_OT_single_uv_map, MADPLUGIN_OT_name_materials_from_root, VIEW3D_PT_madplugin_uv_material)
+classes = (MADPLUGIN_OT_single_uv_map, MADPLUGIN_OT_name_materials_from_root)
 
 
 def register():

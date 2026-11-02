@@ -280,28 +280,20 @@ class OBJECT_OT_explode_reset(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class VIEW3D_PT_explode(bpy.types.Panel):
-    bl_label = "Explode"
-    bl_idname = "VIEW3D_PT_explode"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = "Modeler Kit"
-    bl_order = 1
-
-    def draw(self, context):
-        col = self.layout.column()
-        row = col.row(align=True)
-        row.prop(context.scene, "explode_direction", expand=True)
-        row = col.row()
-        row.active = bool(targets(context))  # greyed out while there is nothing for it to move
-        row.prop(context.scene, "explode_factor", slider=True)
-        col.prop(context.scene, "explode_anchor")
-        col.prop(context.scene, "explode_islands")
-        col.prop(context.scene, "explode_selected_only")
-        col.operator("object.explode_reset")
+def draw(layout, context):
+    col = layout.column()
+    row = col.row(align=True)
+    row.prop(context.scene, "explode_direction", expand=True)
+    row = col.row()
+    row.active = bool(targets(context))  # greyed out while there is nothing for it to move
+    row.prop(context.scene, "explode_factor", slider=True)
+    col.prop(context.scene, "explode_anchor")
+    col.prop(context.scene, "explode_islands")
+    col.prop(context.scene, "explode_selected_only")
+    col.operator("object.explode_reset")
 
 
-classes = (OBJECT_OT_explode_reset, VIEW3D_PT_explode)
+classes = (OBJECT_OT_explode_reset,)
 
 
 def register():
