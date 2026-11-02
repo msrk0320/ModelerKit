@@ -1,0 +1,16 @@
+schema_version = "1.0.0"
+id = "modelerkit"
+version = "1.0.0"
+name = "Modeler Kit"
+tagline = "Explode, lock location, UV and material names, SP textures"
+maintainer = "MadSrei"
+type = "add-on"
+blender_version_min = "4.5.0"
+license = ["SPDX:GPL-3.0-or-later"]
+tags = ["Object", "Material", "UV"]
+
+[permissions]
+files = "Import textures from a folder"
+
+[build]
+paths_exclude_pattern = ["__pycache__/", "*.pyc"]
