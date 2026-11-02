@@ -27,6 +27,8 @@ def _folder(context):
 def _folder_problem(context):
     """Why the texture folder can't be used, or "" when it can. An unsaved .blend would read "//" as the folder
     Blender was launched from."""
+    if not context.scene.mk_sp_texture_folder:
+        return "Pick a texture folder"
     if context.scene.mk_sp_texture_folder.startswith("//") and not bpy.data.filepath:
         return "Save the .blend first, or pick a texture folder"
     folder = _folder(context)
@@ -187,9 +189,10 @@ class MODELERKIT_OT_reload(bpy.types.Operator):
         if count == 0 and not missing:
             self.report({"WARNING"}, "No loaded images come from this folder - use Import Textures first")
             return {"CANCELLED"}
-        msg = "Reloaded %d texture(s)" % count
+        parts = ["Reloaded %d texture(s)" % count] if count else []
         if missing:
-            msg += "; missing from the folder: %s" % ", ".join(missing)
+            parts.append("Missing from the folder: %s" % ", ".join(missing))
+        msg = "; ".join(parts)
         self.report({"WARNING"} if missing else {"INFO"}, msg)
         if count == 0:
             return {"CANCELLED"}

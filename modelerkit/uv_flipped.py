@@ -118,8 +118,9 @@ class MODELERKIT_OT_find_folded_uvs(bpy.types.Operator):
             found[o] = (folds, islands)
         if context.view_layer.objects.active not in found:  # Edit Mode follows the active object
             context.view_layer.objects.active = next(iter(found))
-        bpy.ops.object.mode_set(mode="EDIT")
+        # before Edit Mode: set later it only reaches the active mesh, and the others deselect what we select
         context.tool_settings.mesh_select_mode = (False, False, True)
+        bpy.ops.object.mode_set(mode="EDIT")
         for o, (folds, _islands) in found.items():
             _select(o, folds)
         lines = []

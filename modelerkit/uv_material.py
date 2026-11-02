@@ -1,5 +1,7 @@
 """One UV map and SKU-named materials on the selected objects."""
 
+import re
+
 import bpy
 
 
@@ -69,15 +71,20 @@ class MODELERKIT_OT_name_materials_from_root(bpy.types.Operator):
             meshes = {o.data for o in objs}
             # the SKU's own material when it exists (renaming another onto it would give Mat_<SKU>.001); else the
             # first material on the root's meshes; a bare product gets a new one
-            mat = bpy.data.materials.get(name) \
-                or next((s.material for o in objs for s in o.material_slots if s.material), None) \
-                or bpy.data.materials.new(name)
+            first = next((s.material for o in objs for s in o.material_slots if s.material), None)
+            mat = bpy.data.materials.get(name) or first or bpy.data.materials.new(name)
             # a material anything else still uses (other meshes, object-linked slots, curves) is copied, so
             # renaming it cannot rename another product's and a new product never shares an old SKU's
             own = {me for me, roots in roots_of.items() if roots == {root}}
             own |= {o for o in bpy.data.objects if o.type == "MESH" and _root(o) == root}
-            if {u for u in bpy.data.user_map(subset={mat})[mat] if u.users} - own:  # deleted parts' meshes don't count
-                mat = mat.copy()
+
+            def used_elsewhere(m):
+                return {u for u in bpy.data.user_map(subset={m})[m] if u.users} - own  # deleted parts' meshes don't count
+
+            if used_elsewhere(mat):
+                # the numbered copy from an earlier press stays, or every press would make another
+                kept = first and re.sub(r"\.\d{3}$", "", first.name) == name and not used_elsewhere(first)
+                mat = first if kept else mat.copy()
             if mat.name != name:
                 if name in bpy.data.materials:
                     clashes.append(mat.name)
@@ -91,9 +98,9 @@ class MODELERKIT_OT_name_materials_from_root(bpy.types.Operator):
         skipped = sorted(me.name for me in shared if any(o.data is me for o in context.selected_objects))
         notes = [f"left alone, used by several products: {', '.join(skipped)}"] if skipped else []
         if clashes:
-            notes.append(f"another product already has that name, so these got a number: {', '.join(clashes)}")
+            notes.append(f"something else already uses that name, so these got a number: {', '.join(clashes)}")
         self.report({"WARNING"} if notes else {"INFO"},
-                    "; ".join([f"{len(by_root)} root(s) now use one material"] + notes))
+                    "; ".join(([f"{len(by_root)} root(s) now use one material"] if by_root else []) + notes))
         return {"FINISHED"}
 
 

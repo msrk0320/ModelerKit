@@ -149,6 +149,11 @@ class TextureTests(Base):
         self.assertEqual(sum(n.name.startswith("SPLink_") for n in self.mat.node_tree.nodes), 6)
         self.assertEqual(sum(i.name.startswith("Mat_R_") for i in bpy.data.images), 5)
 
+    def test_empty_folder_field_asks_for_a_folder(self):
+        bpy.context.scene.mk_sp_texture_folder = ""
+        with self.assertRaisesRegex(RuntimeError, "Pick a texture folder"):
+            bpy.ops.modelerkit.import_textures()
+
     def test_reload_reads_the_new_file(self):
         path = os.path.join(self.tmp, "Mat_R_BaseColor.png")
         write_png(path, 0.2)
@@ -210,6 +215,18 @@ class FindFlippedUvTests(Base):
         self.assertEqual(bpy.ops.modelerkit.find_folded_uvs(), {"FINISHED"})
         bpy.ops.object.mode_set(mode="OBJECT")
         self.assertEqual([p.index for p in o.data.polygons if p.select], folds)
+
+    def test_every_selected_mesh_gets_its_folded_faces_selected(self):
+        a, b = grid("a"), grid("b")
+        fold(a)
+        fold(b)
+        wanted = {o: uv_flipped.folded(o.data)[0] for o in (a, b)}
+        select(a, b)
+        bpy.context.tool_settings.mesh_select_mode = (True, False, False)
+        self.assertEqual(bpy.ops.modelerkit.find_folded_uvs(), {"FINISHED"})
+        bpy.ops.object.mode_set(mode="OBJECT")
+        for o in (a, b):
+            self.assertEqual([p.index for p in o.data.polygons if p.select], wanted[o])
 
     def test_a_mesh_without_uvs_does_not_crash(self):
         select(mesh("bare", uvs=()))

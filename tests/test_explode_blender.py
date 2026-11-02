@@ -626,9 +626,7 @@ class QaRegressionTests(ExplodeBase):
         parent_at = pos(root)
         select(child)
         slide(2.0)
-        slide(0.0)  # the child is back at rest; its parent is still displaced, so it must ride along
-        self.assertNear(pos(child) - pos(root), (3, 0, 0))
-        self.assertNear(pos(root), parent_at)
+        self.assertNear(pos(root), parent_at)  # moved alone: the parent stays where it was
         press(bpy.ops.modelerkit.explode_reset)
         self.assertNear(pos(root), (0, 0, 0))
         self.assertNear(pos(child), (3, 0, 0))
@@ -685,6 +683,41 @@ class QaRegressionTests(ExplodeBase):
         slide(0.0)
         self.assertIsNone(o.data.shape_keys)
         self.assertFalse(o.use_shape_key_edit_mode)
+
+    def test_slider_at_zero_brings_back_parts_no_longer_selected(self):
+        a, b = part("a", (0, 0, 0)), part("b", (5, 0, 0))
+        self.sc.mk_explode_selected_only = True
+        select(a, b)
+        slide(2.0)
+        select(a)
+        slide(0.0)
+        self.assertNear(pos(a), (0, 0, 0))
+        self.assertNear(pos(b), (5, 0, 0))
+        select()
+        slide(2.0)
+        slide(0.0)
+        self.assertEqual(traces(a) + traces(b), [])
+
+    def test_users_active_shape_key_comes_back(self):
+        o = part("hinge", (0, 0, 0), pieces=2)
+        for name in ("Basis", "Smile", "Frown"):
+            o.shape_key_add(name=name, from_mix=False)
+        o.active_shape_key_index = 2
+        slide(2.0)
+        slide(0.0)
+        self.assertEqual(o.active_shape_key_index, 2)
+        slide(2.0)
+        press(bpy.ops.modelerkit.explode_reset)
+        self.assertEqual(o.active_shape_key_index, 2)
+
+    def test_reset_clears_a_slider_that_moved_nothing(self):
+        part("a", (0, 0, 0))
+        self.sc.mk_explode_selected_only = True
+        select()
+        slide(3.0)
+        self.assertTrue(bpy.ops.modelerkit.explode_reset.poll())
+        press(bpy.ops.modelerkit.explode_reset)
+        self.assertEqual(self.sc.mk_explode_factor, 0.0)
 
     def test_hidden_part_goes_back_with_the_slider(self):
         objs = [part("a", (0, 0, 0)), part("b", (6, 0, 0)), part("c", (12, 0, 0))]

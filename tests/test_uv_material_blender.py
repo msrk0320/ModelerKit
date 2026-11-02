@@ -66,6 +66,16 @@ class UvMaterialTests(unittest.TestCase):
             bpy.ops.modelerkit.name_materials_from_root()
         self.assertEqual([m.name for m in bpy.data.materials], ["Mat_R"])
 
+    def test_pressing_again_after_a_name_clash_makes_no_more_copies(self):
+        stray = mesh_obj("stray", [], mats=[bpy.data.materials.new("Mat_R")])
+        stray.select_set(False)
+        root = mesh_obj("R", [])
+        for _ in range(3):
+            bpy.ops.modelerkit.name_materials_from_root()
+        self.assertEqual(sorted(m.name for m in bpy.data.materials), ["Mat_R", "Mat_R.001"])
+        self.assertEqual(root.data.materials[0].name, "Mat_R.001")
+        self.assertEqual(stray.data.materials[0].name, "Mat_R")
+
     def test_mesh_without_uv_is_skipped(self):
         o = mesh_obj("a", [])
         bpy.ops.modelerkit.single_uv_map()

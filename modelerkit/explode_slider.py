@@ -10,6 +10,7 @@ KEY_S = "_explode_size"    # largest dimension of the object's world bounding bo
 KEY_N = "_explode_name"    # name of the object the rest data belongs to (Shift+D copies custom properties)
 SK = "Explode"             # shape key that moves loose mesh islands apart
 KEY_P = "_explode_placed"  # the local location the slider last gave the object: anything else is the user's own move
+KEY_I = "_explode_active"  # on the mesh's shape keys: which key was active before the Explode key was built
 KEY_B = "_explode_basis"   # on the mesh's shape keys: the Basis was added by this tool, not the user's
 TIE = 0.02                 # centres closer than this share of the layout's spread count as one place
 
@@ -36,11 +37,16 @@ def remove_key(o):
         return
     o.shape_key_remove(kb)
     keys = o.data.shape_keys
+    active = keys.get(KEY_I, 0)
+    if KEY_I in keys:
+        del keys[KEY_I]
     added_basis = KEY_B in keys
     if added_basis:
         del keys[KEY_B]
     if added_basis and len(keys.key_blocks) == 1:
         o.shape_key_clear()
+    else:
+        o.active_shape_key_index = active
     o.use_shape_key_edit_mode = False  # shortcut: assumes the user had it off (Blender's default)
 
 
@@ -171,12 +177,13 @@ def island_key(o):
         return None  # single piece, nothing to separate
     mid = (Vector(min(v[i] for v in lo.values()) for i in range(3))
            + Vector(max(v[i] for v in hi.values()) for i in range(3))) / 2
-    added_basis = not me.shape_keys
+    added_basis, active = not me.shape_keys, o.active_shape_key_index
     if added_basis:
         o.shape_key_add(name="Basis", from_mix=False)
     kb = o.shape_key_add(name=SK, from_mix=False)
     kb.slider_min, kb.slider_max = 0.0, 10.0
     o.use_shape_key_edit_mode = True
+    me.shape_keys[KEY_I] = active
     if added_basis:
         me.shape_keys[KEY_B] = 1
     to_local = to_world.inverted_safe()
@@ -198,11 +205,13 @@ def set_island_value(o, value):
 
 
 def update(self, context):
-    objs = targets(context)
-    if not objs:
-        return
     sc = context.scene
     f = sc.mk_explode_factor
+    objs = targets(context)
+    if f == 0:  # at rest means everything, also parts moved under an earlier selection
+        objs += [o for o in sc.objects if o.type == 'MESH' and has_rest(o) and o not in objs]
+    if not objs:
+        return
     for o in objs:
         if not has_rest(o):
             capture(o)  # added, copied or newly selected since the last capture
@@ -262,7 +271,8 @@ def can_run(cls, context, ok, why):
 def poll_has_explode_data(cls, context):
     """True if any object or scene has explode data (shape keys or custom properties)."""
     return can_run(cls, context,
-                   any(traces(o) or explode_key(o) for o in bpy.data.objects) or any(traces(sc) for sc in bpy.data.scenes),
+                   any(traces(o) or explode_key(o) for o in bpy.data.objects)
+                   or any(traces(sc) or sc.mk_explode_factor for sc in bpy.data.scenes),
                    "Nothing to reset")
 
 
@@ -302,7 +312,7 @@ class MODELERKIT_OT_explode_reset(bpy.types.Operator):
 def draw(layout, context):
     col = layout.column()
     row = col.row()
-    row.active = bool(targets(context))  # greyed out while there is nothing for it to move
+    row.active = bool(targets(context)) and context.mode == 'OBJECT'  # greyed out when it can't do its whole job
     row.prop(context.scene, "mk_explode_factor", slider=True)
     col.prop(context.scene, "mk_explode_selected_only")
     col.operator("modelerkit.explode_reset")
