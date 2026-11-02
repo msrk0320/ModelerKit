@@ -737,6 +737,80 @@ def setUpModule():
     ex.register()
 
 
+class QaRegressionTests(ExplodeBase):
+    def test_child_of_a_displaced_parent_keeps_its_real_rest(self):
+        root, ref = part("root", (0, 0, 0)), part("ref", (10, 0, 0))
+        child = part("child", (3, 0, 0))
+        child.parent = root
+        self.sc.explode_selected_only = True
+        select(root, ref)
+        slide(3.0)
+        select(child)
+        slide(2.0)
+        press(bpy.ops.object.explode_reset)
+        self.assertNear(pos(child), (3, 0, 0))
+
+    def test_unmoved_part_between_moved_parts_in_a_chain_comes_back(self):
+        p0, p1, p2 = part("p0", (0, 0, 0)), part("p1", (0, 0, 0)), part("p2", (0, 0, 0))
+        ref = part("ref", (10, 0, 0))
+        p1.parent, p2.parent = p0, p1
+        p1.location, p2.location = (3, 0, 0), (3, 0, 0)
+        bpy.context.view_layer.update()
+        rest = {o.name: pos(o) for o in (p0, p1, p2, ref)}
+        self.sc.explode_selected_only = True
+        select(p0, p2, ref)
+        slide(3.0)
+        slide(0.0)
+        for o in (p0, p1, p2, ref):
+            self.assertNear(pos(o), rest[o.name])
+        slide(3.0)
+        press(bpy.ops.object.explode_reset)
+        for o in (p0, p1, p2, ref):
+            self.assertNear(pos(o), rest[o.name])
+
+    def test_child_moved_alone_rides_its_displaced_parent_and_resets(self):
+        root, ref = part("root", (0, 0, 0)), part("ref", (10, 0, 0))
+        child = part("child", (3, 0, 0))
+        child.parent = root
+        self.sc.explode_selected_only = True
+        select(root, ref)
+        slide(3.0)
+        parent_at = pos(root)
+        select(child)
+        slide(2.0)
+        slide(0.0)  # the child is back at rest; its parent is still displaced, so it must ride along
+        self.assertNear(pos(child) - pos(root), (3, 0, 0))
+        self.assertNear(pos(root), parent_at)
+        press(bpy.ops.object.explode_reset)
+        self.assertNear(pos(root), (0, 0, 0))
+        self.assertNear(pos(child), (3, 0, 0))
+
+    def test_hidden_part_goes_back_with_the_slider(self):
+        objs = [part("a", (0, 0, 0)), part("b", (6, 0, 0)), part("c", (12, 0, 0))]
+        slide(3.0)
+        objs[0].hide_set(True)
+        slide(0.0)
+        objs[0].hide_set(False)
+        self.assertNear(pos(objs[0]), (0, 0, 0))
+
+    def test_users_only_shape_key_survives_reset(self):
+        for name in ("Smile", "Basis"):
+            o = part("hinge_" + name, (0, 0, 0), pieces=2)
+            o.shape_key_add(name=name, from_mix=False)
+            slide(2.0)
+            press(bpy.ops.object.explode_reset)
+            self.assertEqual([k.name for k in o.data.shape_keys.key_blocks], [name])
+            slide(0.0)
+
+    def test_reset_clears_shape_key_edit_mode_and_basis_it_added(self):
+        o = part("hinge", (0, 0, 0), pieces=2)
+        slide(2.0)
+        self.assertTrue(o.use_shape_key_edit_mode)
+        press(bpy.ops.object.explode_reset)
+        self.assertFalse(o.use_shape_key_edit_mode)
+        self.assertIsNone(o.data.shape_keys)
+
+
 def tearDownModule():
     ex.unregister()
 

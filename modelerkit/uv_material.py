@@ -71,12 +71,13 @@ class MADPLUGIN_OT_name_materials_from_root(bpy.types.Operator):
             mat = bpy.data.materials.get(name) \
                 or next((s.material for o in objs for s in o.material_slots if s.material), None) \
                 or bpy.data.materials.new(name)
-            if mat.name != name:
-                # a material anything else still uses (other meshes, object-linked slots, curves) is copied, so
-                # renaming it cannot rename another product's
-                users = bpy.data.user_map(subset={mat})[mat] - meshes - set(objs)
-                if users:
-                    mat = mat.copy()
+            # a material anything else still uses (other meshes, object-linked slots, curves) is copied, so
+            # renaming it cannot rename another product's and a new product never shares an old SKU's
+            own = {me for me, roots in roots_of.items() if roots == {root}}
+            own |= {o for o in bpy.data.objects if o.type == "MESH" and _root(o) == root}
+            if bpy.data.user_map(subset={mat})[mat] - own:
+                mat = mat.copy()
+            if mat.name != name and name not in bpy.data.materials:
                 mat.name = name
             for me in meshes:
                 me.materials.clear()

@@ -24,6 +24,15 @@ def _folder(context):
     return os.path.normpath(bpy.path.abspath(path)) if path else ""
 
 
+def _folder_problem(context):
+    """Why the texture folder can't be used, or "" when it can. An unsaved .blend would read "//" as the folder
+    Blender was launched from."""
+    if context.scene.sp_texture_folder.startswith("//") and not bpy.data.filepath:
+        return "Save the .blend first, or pick a texture folder"
+    folder = _folder(context)
+    return "" if os.path.isdir(folder) else "Texture folder not found: %s" % folder
+
+
 def _scan(folder):
     """Return {texture_set_lower: {suffix: filepath}}."""
     found = {}
@@ -113,10 +122,11 @@ class SPLINK_OT_import(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-        folder = _folder(context)
-        if not os.path.isdir(folder):
-            self.report({"ERROR"}, "Texture folder not found: %s" % folder)
+        problem = _folder_problem(context)
+        if problem:
+            self.report({"ERROR"}, problem)
             return {"CANCELLED"}
+        folder = _folder(context)
 
         sets = _scan(folder)
         if not sets:
@@ -149,10 +159,11 @@ class SPLINK_OT_reload(bpy.types.Operator):
     bl_description = "Re-read from disk every image loaded from the texture folder"
 
     def execute(self, context):
-        folder = _folder(context)
-        if not os.path.isdir(folder):
-            self.report({"ERROR"}, "Texture folder not found: %s" % folder)
+        problem = _folder_problem(context)
+        if problem:
+            self.report({"ERROR"}, problem)
             return {"CANCELLED"}
+        folder = _folder(context)
 
         count = 0
         for img in bpy.data.images:

@@ -10,6 +10,7 @@ KEY_S = "_explode_size"    # largest dimension of the object's world bounding bo
 KEY_N = "_explode_name"    # name of the object the rest data belongs to (Shift+D copies custom properties)
 SK = "Explode"             # shape key that moves loose mesh islands apart
 KEY_A = "_explode_axis"    # on the mesh's shape keys: the world axis the Explode key was built for
+KEY_B = "_explode_basis"   # on the mesh's shape keys: the Basis was added by this tool, not the user's
 TIE = 0.02                 # centres closer than this share of the layout's spread count as one place
 
 
@@ -34,10 +35,15 @@ def remove_key(o):
     if kb is None:
         return
     o.shape_key_remove(kb)
-    if KEY_A in o.data.shape_keys:
-        del o.data.shape_keys[KEY_A]
-    if len(o.data.shape_keys.key_blocks) == 1:
+    keys = o.data.shape_keys
+    if KEY_A in keys:
+        del keys[KEY_A]
+    added_basis = KEY_B in keys
+    if added_basis:
+        del keys[KEY_B]
+    if added_basis and len(keys.key_blocks) == 1:
         o.shape_key_clear()
+    o.use_shape_key_edit_mode = False  # shortcut: assumes the user had it off (Blender's default)
 
 
 def bake_and_remove_key(o):
@@ -59,7 +65,11 @@ def bake_and_remove_key(o):
 
 
 def targets(context):
-    objs = context.selected_objects if context.scene.explode_selected_only else context.visible_objects
+    if context.scene.explode_selected_only:
+        objs = context.selected_objects
+    else:  # parts hidden since they were moved still go back with the slider
+        shown = set(context.visible_objects)
+        objs = list(shown) + [o for o in context.scene.objects if o not in shown and has_rest(o)]
     return [o for o in objs if o.type == 'MESH']
 
 
@@ -87,9 +97,9 @@ def bbox_size(o):
     return max(max(p[i] for p in pts) - min(p[i] for p in pts) for i in range(3))
 
 
-def rest_bounds(o):
+def rest_bounds(o, moving=()):
     """World bounding box (lo, hi) at the rest position: the current box less the slider's move."""
-    move = o.matrix_world.translation - Vector(o[KEY])
+    move = o.matrix_world.translation - Vector(o[KEY]) - parent_shift(o, moving)
     pts = [o.matrix_world @ Vector(c) - move for c in o.bound_box]
     return (Vector(min(p[i] for p in pts) for i in range(3)), Vector(max(p[i] for p in pts) for i in range(3)))
 
@@ -99,9 +109,19 @@ def side_by_side(a, b, axis):
     return any(axis[i] == 0 and (a[1][i] < b[0][i] or b[1][i] < a[0][i]) for i in range(3))
 
 
+def parent_shift(o, moving=()):
+    """How far the nearest exploded ancestor has moved: o rides along, so that part of its position isn't its rest.
+    Zero when that ancestor is itself being placed (`moving`): o is then placed on its own target."""
+    p = o.parent
+    while p and not has_rest(p):
+        p = p.parent
+    return p.matrix_world.translation - Vector(p[KEY]) if p and p not in moving else Vector()
+
+
 def capture(o):
-    o[KEY] = tuple(o.matrix_world.translation)
-    o[KEY_C] = tuple(bbox_center(o))
+    shift = parent_shift(o)
+    o[KEY] = tuple(o.matrix_world.translation - shift)
+    o[KEY_C] = tuple(bbox_center(o) - shift)
     o[KEY_S] = bbox_size(o)
 
 
@@ -153,12 +173,15 @@ def island_key(o, direction):
         return None  # single piece, nothing to separate
     mid = (Vector(min(v[i] for v in lo.values()) for i in range(3))
            + Vector(max(v[i] for v in hi.values()) for i in range(3))) / 2
-    if not me.shape_keys:
+    added_basis = not me.shape_keys
+    if added_basis:
         o.shape_key_add(name="Basis", from_mix=False)
     kb = o.shape_key_add(name=SK, from_mix=False)
     kb.slider_min, kb.slider_max = 0.0, 10.0
     o.use_shape_key_edit_mode = True
     me.shape_keys[KEY_A] = direction
+    if added_basis:
+        me.shape_keys[KEY_B] = 1
     axis, to_local = axis_vector(direction), to_world.inverted_safe()
     shift = {r: to_local @ (axis * (((lo[r] + hi[r]) / 2 - mid) @ axis)) for r in lo}
     for i, r in enumerate(roots):
@@ -203,7 +226,8 @@ def update(self, context):
     axis = axis_vector(direction)
     ranked = sorted(objs, key=lambda o: (centers[o] @ axis, o.name))
     places = [centers[o] @ axis for o in ranked]
-    bounds = {o: rest_bounds(o) for o in ranked}
+    moving = set(objs)
+    bounds = {o: rest_bounds(o, moving) for o in ranked}
     tie = TIE * (places[-1] - places[0])
     rank, ranks, group = 0, [], []
     for i, o in enumerate(ranked):
@@ -225,7 +249,9 @@ def update(self, context):
 
     # Place objects
     for o in sorted(objs, key=depth):
-        o.matrix_world.translation = Vector(o[KEY]) + offsets[o]
+        o.matrix_world.translation = Vector(o[KEY]) + offsets[o] + parent_shift(o, moving)
+        if o.children:
+            context.view_layer.update()  # a descendant is placed from its parent's matrix, which must not be stale
 
     if f == 0:
         clear(objs)  # all back at rest: forget it, so moves made from here on are kept by the next explode
@@ -261,6 +287,8 @@ class OBJECT_OT_explode_reset(bpy.types.Operator):
         for o in sorted(objs, key=depth):
             if has_rest(o):
                 o.matrix_world.translation = Vector(o[KEY])
+                if o.children:
+                    context.view_layer.update()
             remove_key(o)
 
         # Remove ALL explode data from ALL objects (not just exploded ones)

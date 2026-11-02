@@ -37,6 +37,26 @@ class UvMaterialTests(unittest.TestCase):
         bpy.ops.madplugin.single_uv_map()
         self.assertEqual([l.name for l in o.data.uv_layers], ["UVMap"])
 
+    def test_new_product_does_not_share_a_material_with_an_unselected_one(self):
+        old = mesh_obj("A", [])
+        bpy.ops.madplugin.name_materials_from_root()
+        old.name = "A_OLD"
+        new = mesh_obj("A", [])
+        bpy.ops.object.select_all(action="DESELECT")
+        new.select_set(True)
+        bpy.ops.madplugin.name_materials_from_root()
+        self.assertIsNot(old.data.materials[0], new.data.materials[0])
+
+    def test_pressing_again_on_part_of_a_product_keeps_the_product_material(self):
+        root = mesh_obj("R", [])
+        a, b = mesh_obj("a", [], parent=root), mesh_obj("b", [], parent=root)
+        bpy.ops.madplugin.name_materials_from_root()
+        bpy.ops.object.select_all(action="DESELECT")
+        a.select_set(True)
+        bpy.ops.madplugin.name_materials_from_root()
+        self.assertEqual([m.name for m in bpy.data.materials], ["Mat_R"])
+        self.assertIs(a.data.materials[0], b.data.materials[0])
+
     def test_mesh_without_uv_is_skipped(self):
         o = mesh_obj("a", [])
         bpy.ops.madplugin.single_uv_map()
