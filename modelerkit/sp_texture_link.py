@@ -215,6 +215,7 @@ def register():
         name="Texture Folder",
         description="Folder Painter exported into (<spp folder>\\<spp name>\\Textures)",
         subtype="DIR_PATH",
+        options={"PATH_SUPPORTS_BLEND_RELATIVE"},  # without it Blender paints the "//" default red
         default="//",  # browse starts in the .blend's folder
     )
     for c in CLASSES:
