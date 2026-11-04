@@ -29,9 +29,11 @@ Works on Blender 4.5 and newer.
 - **Find Flipped UVs:** selects UV faces that wind the other way than the rest of their island. UVPackmaster would split these off as extra islands. This button leaves you in Edit Mode, so return to Object Mode before using Explode.
 
 **SP Textures**
-- **Folder:** the folder Painter exported into. The default, the `.blend` file's own folder, needs a saved file.
-- **Import Textures:** connects `<Material>_BaseColor`, `_Roughness`, `_Metallic`, `_Normal` and `_Transmissive` to each material with the same name. It uses the selected objects, or the whole scene if nothing is selected.
+- **Folder:** the folder Painter exported into. The default, `//`, needs a saved file. It uses `<blend name>\Textures\` beside the `.blend` if that exists, which is where Painter's export goes when the `.spp` has the same name and folder as the `.blend`. Otherwise it uses the `.blend` file's own folder. A folder you pick yourself is used as it is.
+- **Normal Map:** untick it before Import Textures to leave the normal map out. To remove one already connected, untick it and press Import Textures again.
+- **Import Textures:** connects `<Material>_BaseColor`, `_Roughness`, `_Metallic` (or `_metalness`), `_Normal` and `_Transmissive` to each material with the same name. Capitals don't matter, and neither does a leading `Mat_`, so `Mat_ABC` picks up `ABC_basecolor.png`. It uses the selected objects, or the whole scene if nothing is selected.
 - **Reload Textures:** reads already imported images again after a new Painter export. For a new map, press Import Textures. If a file was deleted it warns with the name, and that texture may show pink.
+- **Install Painter Export:** copies a small script into Painter's startup folder, replacing an older copy. Restart Painter, then use **File > Export Textures to Project Folder**. It writes every texture set to `<spp folder>\<spp name>\Textures\` as 2048 PNGs with the names Import Textures expects. Tested on Painter 12.1; it needs a Painter version that includes PySide6.
 
 ## Good to know
 

@@ -10,7 +10,7 @@ import bpy
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import modelerkit  # noqa: E402
-from modelerkit import panel, uv_flipped  # noqa: E402
+from modelerkit import panel, sp_texture_link, uv_flipped  # noqa: E402
 
 MAP_NAMES = ("BaseColor", "Roughness", "Metallic", "Normal", "Transmissive")
 
@@ -87,8 +87,9 @@ class PanelTests(Base):
         self.assertEqual(set(layout.ops), {
             "modelerkit.explode_reset", "modelerkit.toggle_lock_location", "modelerkit.single_uv_map",
             "modelerkit.name_materials_from_root", "modelerkit.find_folded_uvs",
-            "modelerkit.reload_textures", "modelerkit.import_textures"})
-        self.assertEqual(set(layout.props), {"mk_explode_factor", "mk_explode_selected_only", "mk_sp_texture_folder"})
+            "modelerkit.reload_textures", "modelerkit.import_textures", "modelerkit.install_painter_export"})
+        self.assertEqual(set(layout.props), {"mk_explode_factor", "mk_explode_selected_only", "mk_sp_texture_folder",
+                                             "mk_sp_import_normal"})
         for idname in layout.ops:
             group, name = idname.split(".")
             getattr(getattr(bpy.ops, group), name).get_rna_type()  # raises if not registered
@@ -149,6 +150,66 @@ class TextureTests(Base):
         self.assertEqual(sum(n.name.startswith("SPLink_") for n in self.mat.node_tree.nodes), 6)
         self.assertEqual(sum(i.name.startswith("Mat_R_") for i in bpy.data.images), 5)
 
+    def test_delivery_pack_names_match_the_mat_material(self):
+        for name in ("basecolor", "roughness", "metalness", "normal", "transmissive"):
+            write_png(os.path.join(self.tmp, "R_%s.png" % name))
+        self.assertEqual(bpy.ops.modelerkit.import_textures(), {"FINISHED"})
+        self.assertEqual(self.linked(), {"Base Color", "Roughness", "Metallic", "Normal", "Transmission Weight"})
+
+    def test_mat_textures_match_a_material_without_the_prefix(self):
+        self.mat.name = "R"
+        write_png(os.path.join(self.tmp, "Mat_R_BaseColor.png"))
+        self.assertEqual(bpy.ops.modelerkit.import_textures(), {"FINISHED"})
+        self.assertEqual(self.linked(), {"Base Color"})
+
+    def test_unticking_normal_map_skips_it_and_removes_one_already_connected(self):
+        for name in MAP_NAMES:
+            write_png(os.path.join(self.tmp, "Mat_R_%s.png" % name))
+        bpy.ops.modelerkit.import_textures()
+        self.assertIn("Normal", self.linked())
+        bpy.context.scene.mk_sp_import_normal = False
+        self.assertEqual(bpy.ops.modelerkit.import_textures(), {"FINISHED"})
+        self.assertEqual(self.linked(), {"Base Color", "Roughness", "Metallic", "Transmission Weight"})
+        self.assertFalse(any(n.name.startswith(("SPLink_Normal", "SPLink_NormalMap")) for n in self.mat.node_tree.nodes))
+        bpy.context.scene.mk_sp_import_normal = True
+        bpy.ops.modelerkit.import_textures()
+        self.assertIn("Normal", self.linked())
+
+    def test_unticked_with_only_a_normal_file_is_not_a_name_mismatch(self):
+        write_png(os.path.join(self.tmp, "Mat_R_Normal.png"))
+        bpy.context.scene.mk_sp_import_normal = False
+        self.assertEqual(bpy.ops.modelerkit.import_textures(), {"FINISHED"})
+        self.assertEqual(self.linked(), set())
+
+    def save_blend_with_export_folder(self):
+        bpy.ops.wm.save_as_mainfile(filepath=os.path.join(self.tmp, "JOB.blend"))
+        self.mat = bpy.data.materials["Mat_R"]
+        export = os.path.join(self.tmp, "JOB", "Textures")
+        os.makedirs(export)
+        return export
+
+    def test_default_folder_finds_painters_export_folder(self):
+        write_png(os.path.join(self.save_blend_with_export_folder(), "Mat_R_BaseColor.png"))
+        bpy.context.scene.mk_sp_texture_folder = "//"
+        self.assertEqual(bpy.ops.modelerkit.import_textures(), {"FINISHED"})
+        self.assertEqual(self.linked(), {"Base Color"})
+        self.assertEqual(bpy.ops.modelerkit.reload_textures(), {"FINISHED"})
+
+    def test_default_folder_still_reads_the_blends_folder_without_an_export_folder(self):
+        bpy.ops.wm.save_as_mainfile(filepath=os.path.join(self.tmp, "JOB.blend"))
+        self.mat = bpy.data.materials["Mat_R"]
+        write_png(os.path.join(self.tmp, "Mat_R_BaseColor.png"))
+        bpy.context.scene.mk_sp_texture_folder = "//"
+        self.assertEqual(bpy.ops.modelerkit.import_textures(), {"FINISHED"})
+        self.assertEqual(self.linked(), {"Base Color"})
+
+    def test_a_picked_folder_is_not_redirected_to_the_export_folder(self):
+        write_png(os.path.join(self.save_blend_with_export_folder(), "Mat_R_BaseColor.png"))
+        write_png(os.path.join(self.tmp, "Mat_R_Roughness.png"))
+        bpy.context.scene.mk_sp_texture_folder = self.tmp
+        self.assertEqual(bpy.ops.modelerkit.import_textures(), {"FINISHED"})
+        self.assertEqual(self.linked(), {"Roughness"})
+
     def test_empty_folder_field_asks_for_a_folder(self):
         bpy.context.scene.mk_sp_texture_folder = ""
         with self.assertRaisesRegex(RuntimeError, "Pick a texture folder"):
@@ -169,6 +230,31 @@ class TextureTests(Base):
         bpy.ops.modelerkit.import_textures()
         os.remove(path)
         self.assertEqual(bpy.ops.modelerkit.reload_textures(), {"CANCELLED"})
+
+
+class InstallPainterExportTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.original = sp_texture_link._painter_folder
+        sp_texture_link._painter_folder = lambda: self.tmp
+
+    def tearDown(self):
+        sp_texture_link._painter_folder = self.original
+        super().tearDown()
+
+    def test_copies_the_script_into_startup_and_replaces_an_older_copy(self):
+        target = Path(self.tmp, "python", "startup", "export_to_project_folder.py")
+        target.parent.mkdir(parents=True)
+        target.write_text("old")
+        self.assertEqual(bpy.ops.modelerkit.install_painter_export(), {"FINISHED"})
+        self.assertEqual(target.read_bytes(), Path(sp_texture_link.PAINTER_SCRIPT).read_bytes())
+
+    def test_no_painter_folder_says_so_and_creates_nothing(self):
+        missing = os.path.join(self.tmp, "none")
+        sp_texture_link._painter_folder = lambda: missing
+        with self.assertRaisesRegex(RuntimeError, "Painter's folder not found"):
+            bpy.ops.modelerkit.install_painter_export()
+        self.assertFalse(os.path.exists(missing))
 
 
 def grid(name="front_rim", cuts=8):

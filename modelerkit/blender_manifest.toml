@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 id = "modelerkit"
-version = "1.1.2"
+version = "1.3.0"
 name = "Modeler Kit"
 tagline = "Explode, lock location, UV and material names, SP textures"
 maintainer = "MadSrei"
@@ -10,7 +10,7 @@ license = ["SPDX:GPL-3.0-or-later"]
 tags = ["Object", "Material", "UV"]
 
 [permissions]
-files = "Import textures from a folder"
+files = "Import textures and install the Painter export script"
 
 [build]
 paths_exclude_pattern = ["__pycache__/", "*.pyc"]

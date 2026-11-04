@@ -1,7 +1,10 @@
 """Import / reload textures written by Painter's 'Export Textures to Project Folder'."""
 
+import ctypes
 import os
 import re
+import shutil
+import sys
 
 import bpy
 
@@ -15,12 +18,22 @@ MAPS = {
     "Normal": ("Normal", "Non-Color"),
     "Transmissive": ("Transmission Weight", "Non-Color"),
 }
+# Lowercase file suffix -> MAPS key. Delivery packs call the metal map <SKU>_metalness.
+SUFFIXES = {**{k.lower(): k for k in MAPS}, "metalness": "Metallic"}
 EXTS = (".png", ".tga", ".tif", ".tiff", ".exr", ".jpg", ".jpeg")
 NODE_PREFIX = "SPLink_"
+PAINTER_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "painter", "export_to_project_folder.py")
 
 
 def _folder(context):
     path = context.scene.mk_sp_texture_folder
+    if path == "//" and bpy.data.filepath:
+        # Default folder: Painter's exporter writes to <spp folder>\<spp name>\Textures, so look there first
+        # for an .spp saved beside the .blend under the same name.
+        stem = os.path.splitext(os.path.basename(bpy.data.filepath))[0]
+        export = os.path.join(os.path.dirname(bpy.data.filepath), stem, "Textures")
+        if os.path.isdir(export):
+            return export
     return os.path.normpath(bpy.path.abspath(path)) if path else ""
 
 
@@ -38,7 +51,7 @@ def _folder_problem(context):
 def _scan(folder):
     """Return {texture_set_lower: {suffix: filepath}}."""
     found = {}
-    pattern = re.compile(r"^(.*)_(%s)$" % "|".join(MAPS), re.IGNORECASE)
+    pattern = re.compile(r"^(.*)_(%s)$" % "|".join(SUFFIXES), re.IGNORECASE)
     for f in os.listdir(folder):
         stem, ext = os.path.splitext(f)
         if ext.lower() not in EXTS:
@@ -46,14 +59,19 @@ def _scan(folder):
         m = pattern.match(stem)
         if not m:
             continue
-        suffix = next(k for k in MAPS if k.lower() == m.group(2).lower())
-        found.setdefault(m.group(1).lower(), {})[suffix] = os.path.join(folder, f)
+        suffix = SUFFIXES[m.group(2).lower()]
+        found.setdefault(_set_key(m.group(1)), {})[suffix] = os.path.join(folder, f)
     return found
+
+
+def _set_key(name):
+    # Mat_<SKU> and <SKU> are the same set: the material carries Mat_, delivered textures don't.
+    return re.sub(r"^mat_", "", name.lower())
 
 
 def _material_key(mat):
     # Blender adds .001 etc. on duplicate names; Painter never sees those.
-    return re.sub(r"\.\d{3}$", "", mat.name).lower()
+    return _set_key(re.sub(r"\.\d{3}$", "", mat.name))
 
 
 def _target_materials(context):
@@ -139,7 +157,9 @@ class MODELERKIT_OT_import(bpy.types.Operator):
         for mat in _target_materials(context):
             maps = sets.get(_material_key(mat))
             if maps:
-                _wire(mat, maps)
+                # _wire drops the previous import's nodes, so unticking also removes a normal map already connected.
+                use_normal = context.scene.mk_sp_import_normal
+                _wire(mat, {k: v for k, v in maps.items() if use_normal or k != "Normal"})
                 done.append(mat.name)
             else:
                 missing.append(mat.name)
@@ -199,15 +219,50 @@ class MODELERKIT_OT_reload(bpy.types.Operator):
         return {"FINISHED"}
 
 
+def _painter_folder():
+    """Painter's user folder. Asks Windows for Documents because OneDrive can move it away from the home folder."""
+    docs = os.path.expanduser("~/Documents")
+    if sys.platform == "win32":
+        buf = ctypes.create_unicode_buffer(260)
+        if ctypes.windll.shell32.SHGetFolderPathW(None, 5, None, 0, buf) == 0:  # 5 = CSIDL_PERSONAL
+            docs = buf.value
+    return os.path.join(docs, "Adobe", "Adobe Substance 3D Painter")
+
+
+class MODELERKIT_OT_install_painter_export(bpy.types.Operator):
+    bl_idname = "modelerkit.install_painter_export"
+    bl_label = "Install Painter Export"
+    bl_description = ("Copy the script behind Painter's File > Export Textures to Project Folder "
+                      "into Painter's startup folder, replacing an older copy")
+
+    def execute(self, context):
+        painter = _painter_folder()
+        if not os.path.isdir(painter):
+            self.report({"ERROR"}, "Painter's folder not found: %s. Start Painter once, then try again" % painter)
+            return {"CANCELLED"}
+        startup = os.path.join(painter, "python", "startup")
+        try:
+            os.makedirs(startup, exist_ok=True)
+            shutil.copyfile(PAINTER_SCRIPT, os.path.join(startup, os.path.basename(PAINTER_SCRIPT)))
+        except OSError as e:
+            self.report({"ERROR"}, "Could not install into %s: %s" % (startup, e))
+            return {"CANCELLED"}
+        self.report({"INFO"}, "Installed. Restart Painter, then use File > Export Textures to Project Folder")
+        return {"FINISHED"}
+
+
 def draw(layout, context):
     col = layout.column(align=True)
     col.prop(context.scene, "mk_sp_texture_folder", text="")
     col.separator()
+    col.prop(context.scene, "mk_sp_import_normal")
     col.operator(MODELERKIT_OT_reload.bl_idname, icon="FILE_REFRESH")
     col.operator(MODELERKIT_OT_import.bl_idname, icon="IMPORT")
+    col.separator()
+    col.operator(MODELERKIT_OT_install_painter_export.bl_idname, icon="EXPORT")
 
 
-CLASSES = (MODELERKIT_OT_import, MODELERKIT_OT_reload)
+CLASSES = (MODELERKIT_OT_import, MODELERKIT_OT_reload, MODELERKIT_OT_install_painter_export)
 
 
 def register():
@@ -218,6 +273,11 @@ def register():
         options={"PATH_SUPPORTS_BLEND_RELATIVE"},  # without it Blender paints the "//" default red
         default="//",  # browse starts in the .blend's folder
     )
+    bpy.types.Scene.mk_sp_import_normal = bpy.props.BoolProperty(
+        name="Normal Map",
+        description="Connect the normal map on Import Textures. Untick and import again to remove one already connected",
+        default=True,
+    )
     for c in CLASSES:
         bpy.utils.register_class(c)
 
@@ -225,4 +285,5 @@ def register():
 def unregister():
     for c in reversed(CLASSES):
         bpy.utils.unregister_class(c)
+    del bpy.types.Scene.mk_sp_import_normal
     del bpy.types.Scene.mk_sp_texture_folder
