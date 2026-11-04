@@ -506,6 +506,90 @@ class PiecesAlongAxisTests(ExplodeBase):
             self.assertAlmostEqual(a.y, b.y, places=5)
             self.assertAlmostEqual(a.z, b.z, places=5)
 
+
+class AxisTests(ExplodeBase):
+    def test_x_is_the_default(self):
+        self.assertEqual(self.sc.mk_explode_axis, "X")
+
+    def test_each_axis_spreads_parts_and_loose_pieces_only_along_it(self):
+        for i, axis in enumerate("XYZ"):
+            bpy.ops.wm.read_factory_settings(use_empty=True)
+            self.sc = bpy.context.scene
+            self.sc.mk_explode_axis = axis
+            at = [0, 0, 0]
+            at[i] = 5
+            a, b = part("a", (0, 0, 0)), part("b", at)
+            multi = part("multi", (0, 0, 0), pieces=2)
+            multi.rotation_euler = (0.5, 0.3, 0.9)  # pieces apart on every world axis
+            bpy.context.view_layer.update()
+            pieces = world_pieces(multi)
+            rest_b, rest_a = pos(b), pos(a)
+            slide(1.0)
+            for o, rest in ((a, rest_a), (b, rest_b)):
+                moved = pos(o) - rest
+                for j in range(3):
+                    if j != i:
+                        self.assertAlmostEqual(moved[j], 0, places=4, msg=axis)
+            self.assertGreater(pos(b)[i] - pos(a)[i], 5, axis)
+            shifts = [n - p for n, p in zip(world_pieces(multi), pieces)]
+            self.assertGreater(abs(shifts[0][i] - shifts[1][i]), 0.1, axis)
+            for j in range(3):
+                if j != i:
+                    self.assertAlmostEqual(shifts[0][j] - shifts[1][j], 0, places=4, msg=axis)
+
+    def test_a_pair_apart_on_x_moves_together_along_y(self):
+        self.sc.mk_explode_axis = "Y"
+        left, right, front = part("left", (-3, 2, 0)), part("right", (3, 2, 0)), part("front", (0, -4, 0))
+        slide(1.0)
+        self.assertAlmostEqual(pos(left).y, pos(right).y, places=4)
+        self.assertGreater(pos(left).y - pos(front).y, 6)
+
+    def test_switching_axis_while_exploded_moves_everything_to_it(self):
+        a, b = part("a", (0, 0, 0)), part("b", (0, 0, 5))
+        multi = part("multi", (0, 0, 0), pieces=2)
+        multi.rotation_euler = (0, 0.7, 0)  # pieces apart on X and Z
+        bpy.context.view_layer.update()
+        rest = {o.name: pos(o) for o in (a, b, multi)}
+        pieces = world_pieces(multi)
+        slide(1.0)
+        self.sc.mk_explode_axis = "Z"
+        self.assertEqual(self.sc.mk_explode_factor, 1.0)
+        for o in (a, b, multi):
+            self.assertAlmostEqual(pos(o).x, rest[o.name].x, places=4, msg=o.name)
+        self.assertGreater(pos(b).z - pos(a).z, 5)
+        after = world_pieces(multi)
+        self.assertAlmostEqual((after[1] - after[0]).x, (pieces[1] - pieces[0]).x, places=4)
+        self.assertGreater(abs((after[1] - after[0]).z), abs((pieces[1] - pieces[0]).z))
+        slide(0.0)
+        self.assertAt(rest)
+        self.assertIsNone(explode_key(multi))
+
+    def test_switching_axis_keeps_a_move_made_while_exploded(self):
+        a, b = part("a", (0, 0, 0)), part("b", (5, 0, 0))
+        slide(1.0)
+        a.location.y += 7
+        bpy.context.view_layer.update()
+        self.sc.mk_explode_axis = "Z"
+        slide(0.0)
+        self.assertNear(pos(a), (0, 7, 0), places=4)
+
+    def test_switching_axis_at_rest_moves_nothing(self):
+        a, b = part("a", (0, 0, 0)), part("b", (5, 0, 0))
+        self.sc.mk_explode_axis = "Y"
+        self.assertNear(pos(a), (0, 0, 0))
+        self.assertNear(pos(b), (5, 0, 0))
+        self.assertEqual(traces(a), [])
+
+    def test_reset_puts_parts_back_after_another_axis(self):
+        a, b = part("a", (0, 0, 0)), part("b", (0, 5, 0))
+        self.sc.mk_explode_axis = "Y"
+        slide(2.0)
+        press(bpy.ops.modelerkit.explode_reset)
+        self.assertNear(pos(a), (0, 0, 0))
+        self.assertNear(pos(b), (0, 5, 0))
+        self.assertEqual(self.sc.mk_explode_axis, "Y")
+
+
 class TwinTests(ExplodeBase):
     def test_overlapping_parts_at_the_same_place_still_separate(self):
         outer, inner = part("outer", (0, 0, 0)), part("inner", (0, 0, 0))

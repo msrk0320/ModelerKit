@@ -13,7 +13,8 @@ Works on Blender 4.5 and newer.
 ## Buttons
 
 **Explode**
-- **Explode slider:** spreads the parts apart along X, including loose pieces inside a mesh. Move it back to 0 to put everything together. Parts at the same X that sit apart on Y or Z, like a left and right pair, move together and stay at the same X.
+- **Explode slider:** spreads the parts apart along the chosen axis, including loose pieces inside a mesh. Move it back to 0 to put everything together. Parts at the same place on that axis that sit apart on the other two, like a left and right pair, move together and stay level.
+- **X / Y / Z:** the world axis to spread along. X is the default. You can switch while exploded, and the parts move to the new axis.
 - **Selected Only:** the slider moves only what is selected at that moment, and children ride with a selected parent. Turn it on if the file has a head, a floor or a second product.
 - **Reset:** puts everything back and removes all explode data from the file.
 - You can move a part while it is exploded. The move is kept when the parts come back.
@@ -26,7 +27,6 @@ Works on Blender 4.5 and newer.
 **UV & Material Names**
 - **Single UV Map:** keeps only the active UV map on the selected meshes and names it `UVMap`.
 - **Single Material from Root:** gives the selected parts of each product one material, named `Mat_<top parent name>`. Name the top parent after the SKU. A mesh shared by two products with Alt+D is left alone, with a warning, so Import Textures skips it too.
-- **Find Flipped UVs:** selects UV faces that wind the other way than the rest of their island. UVPackmaster would split these off as extra islands. This button leaves you in Edit Mode, so return to Object Mode before using Explode.
 
 **SP Textures**
 - **Folder:** the folder Painter exported into. The default, `//`, needs a saved file. It uses `<blend name>\Textures\` beside the `.blend` if that exists, which is where Painter's export goes when the `.spp` has the same name and folder as the `.blend`. Otherwise it uses the `.blend` file's own folder. A folder you pick yourself is used as it is.

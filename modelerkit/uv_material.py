@@ -108,7 +108,6 @@ def draw(layout, context):
     col = layout.column(align=True)
     col.operator(MODELERKIT_OT_single_uv_map.bl_idname, icon="UV")
     col.operator(MODELERKIT_OT_name_materials_from_root.bl_idname, icon="MATERIAL")
-    col.operator("modelerkit.find_folded_uvs", icon="VIEWZOOM")
 
 
 classes = (MODELERKIT_OT_single_uv_map, MODELERKIT_OT_name_materials_from_root)

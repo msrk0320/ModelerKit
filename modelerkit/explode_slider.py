@@ -15,6 +15,12 @@ KEY_B = "_explode_basis"   # on the mesh's shape keys: the Basis was added by th
 TIE = 0.02                 # centres closer than this share of the layout's spread count as one place
 
 
+def along(axis, distance):
+    v = Vector()
+    v[axis] = distance
+    return v
+
+
 def explode_key(o):
     keys = o.data.shape_keys if o.type == 'MESH' else None
     return keys.key_blocks.get(SK) if keys else None
@@ -90,9 +96,9 @@ def rest_bounds(o, moving=()):
     return (Vector(min(p[i] for p in pts) for i in range(3)), Vector(max(p[i] for p in pts) for i in range(3)))
 
 
-def side_by_side(a, b):
-    """True when the boxes are apart on Y or Z, so they don't block each other along X."""
-    return any(a[1][i] < b[0][i] or b[1][i] < a[0][i] for i in (1, 2))
+def side_by_side(a, b, axis):
+    """True when the boxes are apart on the other two axes, so they don't block each other along this one."""
+    return any(a[1][i] < b[0][i] or b[1][i] < a[0][i] for i in range(3) if i != axis)
 
 
 def parent_shift(o, moving=()):
@@ -142,9 +148,9 @@ def clear(objs):
                 del o[k]
 
 
-def island_key(o):
-    """Return the Explode shape key, building it from the mesh's loose parts if missing. The pieces move along world
-    X, whatever the object's rotation or (negative) scale."""
+def island_key(o, axis):
+    """Return the Explode shape key, building it from the mesh's loose parts if missing. The pieces move along this
+    world axis, whatever the object's rotation or (negative) scale."""
     me, kb = o.data, explode_key(o)
     if kb:
         return kb
@@ -187,16 +193,16 @@ def island_key(o):
     if added_basis:
         me.shape_keys[KEY_B] = 1
     to_local = to_world.inverted_safe()
-    shift = {r: to_local @ Vector((((lo[r] + hi[r]) / 2 - mid).x, 0, 0)) for r in lo}
+    shift = {r: to_local @ along(axis, ((lo[r] + hi[r]) / 2 - mid)[axis]) for r in lo}
     for i, r in enumerate(roots):
         kb.data[i].co = me.vertices[i].co + shift[r]
     return kb
 
 
-def set_island_value(o, value):
+def set_island_value(o, value, axis):
     # Edit Mode writes its own copy of the shape keys back on exit, so a key built or switched under it is lost.
     editing = o.mode == 'EDIT'
-    kb = island_key(o) if value > 0 and not editing else explode_key(o)
+    kb = island_key(o, axis) if value > 0 and not editing else explode_key(o)
     if kb:
         kb.value = value
         if not editing:
@@ -217,30 +223,31 @@ def update(self, context):
             capture(o)  # added, copied or newly selected since the last capture
         o[KEY_N] = o.name  # a renamed object keeps its rest data
     keep_hand_moves(objs)
+    axis = "XYZ".index(sc.mk_explode_axis)
     for o in objs:
-        set_island_value(o, f)
+        set_island_value(o, f, axis)
 
     centers = {o: Vector(o[KEY_C]) for o in objs}
     sizes = {o: o[KEY_S] for o in objs}
 
-    # The spread is added to the rest layout, so 0 is the rest pose and the order is kept. Parts at the same X that
-    # sit side by side share a rank and move together; overlapping parts (nested ones) still get their own.
-    ranked = sorted(objs, key=lambda o: (centers[o].x, o.name))
-    places = [centers[o].x for o in ranked]
+    # The spread is added to the rest layout, so 0 is the rest pose and the order is kept. Parts at the same place on
+    # the axis that sit side by side share a rank and move together; overlapping parts (nested ones) still get their own.
+    ranked = sorted(objs, key=lambda o: (centers[o][axis], o.name))
+    places = [centers[o][axis] for o in ranked]
     moving = set(objs)
     bounds = {o: rest_bounds(o, moving) for o in ranked}
     tie = TIE * (places[-1] - places[0])
     rank, ranks, group = 0, [], []
     for i, o in enumerate(ranked):
         if i and (places[i] - places[i - 1] > tie
-                  or not all(side_by_side(bounds[o], bounds[g]) for g in group)):
+                  or not all(side_by_side(bounds[o], bounds[g], axis) for g in group)):
             rank, group = rank + 1, []
         group.append(o)
         ranks.append(rank)
     step = f * max(sizes.values())
     offsets = {}
     for o, r in zip(ranked, ranks):
-        offsets[o] = Vector(((r - rank / 2) * step, 0, 0))
+        offsets[o] = along(axis, (r - rank / 2) * step)
 
     # Place objects
     for o in sorted(objs, key=depth):
@@ -257,6 +264,14 @@ def update(self, context):
     else:
         for o in objs:
             o[KEY_P] = tuple(o.location)
+
+
+def update_axis(self, context):
+    """Bring everything to rest and explode again, so parts and the shape keys of loose pieces all use the new axis."""
+    f = self.mk_explode_factor
+    if f:
+        self.mk_explode_factor = 0.0
+        self.mk_explode_factor = f
 
 
 def can_run(cls, context, ok, why):
@@ -314,6 +329,9 @@ def draw(layout, context):
     row = col.row()
     row.active = bool(targets(context)) and context.mode == 'OBJECT'  # greyed out when it can't do its whole job
     row.prop(context.scene, "mk_explode_factor", slider=True)
+    row = col.row()
+    row.enabled = context.mode == 'OBJECT'  # shape keys built under Edit Mode are lost on exit
+    row.prop(context.scene, "mk_explode_axis", expand=True)
     col.prop(context.scene, "mk_explode_selected_only")
     col.operator("modelerkit.explode_reset")
 
@@ -325,6 +343,9 @@ def register():
     bpy.types.Scene.mk_explode_factor = bpy.props.FloatProperty(
         name="Explode", min=0.0, max=10.0, soft_max=5.0, default=0.0, update=update,
         description="1 = parts about one part-size apart; higher spreads them further")
+    bpy.types.Scene.mk_explode_axis = bpy.props.EnumProperty(
+        name="Axis", default="X", update=update_axis, description="World axis the parts spread along",
+        items=[(a, a, "Spread the parts along world " + a) for a in "XYZ"])
     bpy.types.Scene.mk_explode_selected_only = bpy.props.BoolProperty(
         name="Selected Only", default=False,
         description="Move only the selected meshes instead of every visible mesh")
@@ -335,5 +356,5 @@ def register():
 def unregister():
     for c in reversed(classes):
         bpy.utils.unregister_class(c)
-    for p in ("mk_explode_factor", "mk_explode_selected_only"):
+    for p in ("mk_explode_factor", "mk_explode_axis", "mk_explode_selected_only"):
         delattr(bpy.types.Scene, p)
