@@ -1,0 +1,30 @@
+{
+  "version": "v1",
+  "blocklist": [],
+  "data": [
+    {
+      "schema_version": "1.0.0",
+      "id": "modelerkit",
+      "name": "Modeler Kit",
+      "tagline": "Explode, lock location, UV and material names, SP textures",
+      "version": "1.6.0",
+      "type": "add-on",
+      "maintainer": "MadSrei",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "4.5.0",
+      "permissions": {
+        "files": "Import textures and install the Painter export script"
+      },
+      "tags": [
+        "Object",
+        "Material",
+        "UV"
+      ],
+      "archive_url": "./modelerkit-1.6.0.zip",
+      "archive_size": 15745,
+      "archive_hash": "sha256:acd666aa005aa4b2a98ba4251c8974ee3e67fea6dfb88ab938bb3466bc6acd88"
+    }
+  ]
+}

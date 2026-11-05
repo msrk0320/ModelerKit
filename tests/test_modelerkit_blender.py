@@ -87,7 +87,8 @@ class PanelTests(Base):
         self.assertEqual(set(layout.ops), {
             "modelerkit.explode_reset", "modelerkit.toggle_lock_location", "modelerkit.single_uv_map",
             "modelerkit.name_materials_from_root",
-            "modelerkit.reload_textures", "modelerkit.import_textures", "modelerkit.install_painter_export"})
+            "modelerkit.reload_textures", "modelerkit.import_textures", "modelerkit.install_painter_export",
+            "modelerkit.uninstall"})
         self.assertEqual(set(layout.props), {"mk_explode_factor", "mk_explode_axis", "mk_explode_selected_only",
                                              "mk_sp_texture_folder",
                                              "mk_sp_import_normal"})
@@ -256,6 +257,13 @@ class InstallPainterExportTests(Base):
         with self.assertRaisesRegex(RuntimeError, "Painter's folder not found"):
             bpy.ops.modelerkit.install_painter_export()
         self.assertFalse(os.path.exists(missing))
+
+
+class UninstallTest(unittest.TestCase):
+    def test_outside_an_extension_it_refuses_and_keeps_the_addon(self):
+        # run from a file or --python, the package is not bl_ext.*, so nothing may be removed
+        with self.assertRaisesRegex(RuntimeError, "Not installed as an extension"):
+            bpy.ops.modelerkit.uninstall("EXEC_DEFAULT")
 
 
 def setUpModule():

@@ -10,6 +10,14 @@ Works on Blender 4.5 and newer.
 3. Pick `modelerkit-<version>.zip`.
 4. In the 3D view, press **N** and open the **Modeler Kit** tab.
 
+## Automatic updates
+
+Do this once so Blender updates Modeler Kit by itself:
+
+1. Edit > Preferences > Get Extensions, open the **Repositories** menu (the arrow at the top right) and choose **Add Remote Repository**.
+2. Paste `https://raw.githubusercontent.com/msrk0320/ModelerKit/master/dist/index.json`, tick **Check for Updates on Start**, and press Create.
+3. Install **Modeler Kit** from that repository. When a new version is out, Blender shows **Update** on it.
+
 ## Buttons
 
 **Explode**
@@ -34,6 +42,8 @@ Works on Blender 4.5 and newer.
 - **Import Textures:** connects `<Material>_BaseColor`, `_Roughness`, `_Metallic` (or `_metalness`), `_Normal` and `_Transmissive` to each material with the same name. Capitals don't matter, and neither does a leading `Mat_`, so `Mat_ABC` picks up `ABC_basecolor.png`. It uses the selected objects, or the whole scene if nothing is selected.
 - **Reload Textures:** reads already imported images again after a new Painter export. For a new map, press Import Textures. If a file was deleted it warns with the name, and that texture may show pink.
 - **Install Painter Export:** copies a small script into Painter's startup folder, replacing an older copy. Restart Painter, then use **File > Export Textures to Project Folder**. It writes every texture set to `<spp folder>\<spp name>\Textures\` as 2048 PNGs with the names Import Textures expects. Tested on Painter 12.1; it needs a Painter version that includes PySide6.
+
+**Uninstall Modeler Kit** (bottom of the panel): asks to confirm, then removes the add-on from Blender. Your scenes are not changed.
 
 ## Good to know
 
