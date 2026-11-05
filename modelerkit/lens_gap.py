@@ -108,9 +108,33 @@ def _forward_first(cross, band, matrix):
     return tuple(sorted(cross, key=lambda e: (matrix @ e.other_vert(v).co).y))
 
 
-def _plan_vert(v, ring_edges, band, matrix, tree, offset):
+def _plan_cut_vert(v, edge, band, lens_has_band, matrix, tree, offset):
+    """A vert on a cut has one cross edge, so it slides along that edge's line: inward, or past the open end when the
+    edge stops short of the lens. Both sides of the cut land on the same side of the lens, so they meet there."""
+    start = matrix @ v.co
+    delta = matrix @ edge.other_vert(v).co - start
+    length, along = delta.length, delta.normalized()
+    hits = [sign * hit[3] for sign, hit in ((1, tree.ray_cast(start, along, length)),
+                                            (-1, tree.ray_cast(start, -along, length))) if hit[0] is not None]
+    if not hits:
+        return None
+    if any(f.index in band for f in edge.link_faces):
+        forward = -1
+    elif lens_has_band:
+        forward = 1
+    else:
+        forward = -1 if along.y > 0 else 1  # shortcut: assumes -Y is the frame front, same as _forward_first
+    slide = min(hits, key=abs) + forward * offset
+    return (edge, slide / length) if abs(slide) <= length else None
+
+
+def _plan_vert(v, ring_edges, band, lens_has_band, matrix, tree, offset):
     """(cross edge to slide along, fraction of it), or None when this vert can't reach the lens."""
     cross = [e for e in v.link_edges if e.index not in ring_edges]
+    if cross and offset < 1e-6 and tree.find_nearest(matrix @ v.co)[3] < 1e-6:
+        return cross[0], 0.0  # already on the lens: a ray starting on the surface can miss it
+    if len(cross) == 1:
+        return _plan_cut_vert(v, cross[0], band, lens_has_band, matrix, tree, offset)
     if len(cross) != 2:
         return None
     start = matrix @ v.co
@@ -135,6 +159,21 @@ def _plan_vert(v, ring_edges, band, matrix, tree, offset):
     return (edge, slide / length) if slide <= length else None
 
 
+def _with_other_side_of_cuts(rings, bm, matrix, trees, search):
+    """A ring on a cut has a second ring along the same line: the cut's other side, which must move with it."""
+    picked = {v for verts, _, _ in rings for v in verts}
+    open_rings = [r for r in rings if any(e.is_boundary for e in r[0][0].link_edges)]
+    if not open_rings:
+        return rings
+    reach = 1.5 * max(search, max(_nearest_lens(trees, matrix @ v.co)[1] for r in open_rings for v in r[0]))
+    result = list(rings)
+    for ring in _rings([e for e in bm.edges if e.is_boundary]):
+        verts, _, closed = ring
+        if closed and verts[0] not in picked and all(_nearest_lens(trees, matrix @ v.co)[1] < reach for v in verts):
+            result.append(ring)
+    return result
+
+
 def _plan(bm, matrix, trees, search, offset, use_selection):
     """(moves as (vert, edge, fraction), verts that can't reach the lens, largest gap)."""
     bm.faces.ensure_lookup_table()
@@ -142,14 +181,17 @@ def _plan(bm, matrix, trees, search, offset, use_selection):
     bm.edges.index_update()
     edges = _candidate_edges(bm, matrix, trees, search, use_selection)
     rings = _pick_rings(_rings(edges), matrix, trees)
+    rings = _with_other_side_of_cuts(rings, bm, matrix, trees, search)
     band = {f.index for f in bm.faces if f.select} if use_selection else set()
     band = band or _inward_faces(bm)
+    banded_lenses = {_nearest_lens(trees, matrix @ r[0][0].co)[0] for r in rings
+                     if any(f.index in band for v in r[0] for f in v.link_faces)}
     moves, failed, gap = [], [], 0.0
     for verts, ring_edges, _ in rings:
         for v in verts:
             lens, dist = _nearest_lens(trees, matrix @ v.co)
             gap = max(gap, dist)
-            move = _plan_vert(v, ring_edges, band, matrix, trees[lens], offset)
+            move = _plan_vert(v, ring_edges, band, lens in banded_lenses, matrix, trees[lens], offset)
             if move:
                 moves.append((v, *move))
             else:
@@ -167,7 +209,7 @@ def _slide_uvs(moves, uv_layers):
                 here = next(lp for lp in face.loops if lp.vert is v)
                 there = next(lp for lp in face.loops if lp.vert is other)
                 old = here[layer].uv.copy()
-                target = old.lerp(there[layer].uv, t)
+                target = old + (there[layer].uv - old) * t  # t is negative past a cut's open end
                 for lp in v.link_loops:
                     if (lp[layer].uv - old).length < 1e-5:
                         new[lp] = target
@@ -220,8 +262,9 @@ def _run(op, context, apply):
             context.tool_settings.mesh_select_mode = (True, False, False)
         elif apply:
             _slide_uvs(moves, list(bm.loops.layers.uv.values()))
+            moved = sum(abs(t) * edge.calc_length() > 1e-7 for _, edge, t in moves)
             for v, edge, t in moves:
-                v.co = v.co.lerp(edge.other_vert(v).co, t)
+                v.co = v.co + (edge.other_vert(v).co - v.co) * t
         if failed or apply:
             if editing:
                 bmesh.update_edit_mesh(rim.data)
@@ -232,11 +275,14 @@ def _run(op, context, apply):
         if not editing:
             bm.free()
     if failed:
-        op.report({"ERROR"}, "%d of %d verts can't reach the lens along their edges. Nothing moved; they are selected "
-                  "(see them in Edit Mode). Fix them by hand." % (len(failed), len(failed) + len(moves)))
-        return {"CANCELLED"} if apply else {"FINISHED"}
-    op.report({"INFO"}, ("Closed: %d verts moved, largest gap was %.4f" if apply else
-                         "Check: %d verts can reach the lens, largest gap %.4f") % (len(moves), gap))
+        op.report({"ERROR"}, "%d of %d verts can't slide onto the lens along their edges. Nothing moved; they are "
+                  "selected (see them in Edit Mode). Fix them by hand."
+                  % (len(failed), len(failed) + len(moves)))
+        return {"FINISHED"}  # the selection changed: this gives Ctrl+Z a step, so it can't undo the user's last action
+    if apply:
+        op.report({"INFO"}, "Closed: %d verts moved, largest gap was %.4f" % (moved, gap))
+    else:
+        op.report({"INFO"}, "Check: %d verts can reach the lens, largest gap %.4f" % (len(moves), gap))
     return {"FINISHED"}
 
 
@@ -283,9 +329,9 @@ def register():
         name="Search Distance", default=0.02, min=0.0, step=0.1, precision=4,
         description="How close a loop must be to a lens to be found on its own. Selecting the loop ignores this")
     bpy.types.Scene.mk_lens_gap_offset = bpy.props.FloatProperty(
-        name="Offset", default=0.0007, min=0.0, step=0.01, precision=4,
-        description="How far past the lens surface the loop lands. Too low can let the line return, too high shows "
-                    "the band from the other side")
+        name="Offset", default=0.0, min=0.0, step=0.01, precision=4,
+        description="How far past the lens surface the loop lands. 0 sits exactly on the lens. Raise it only if the "
+                    "line returns; too high shows the flipped band from the front")
     for c in classes:
         bpy.utils.register_class(c)
 

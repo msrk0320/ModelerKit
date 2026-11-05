@@ -50,6 +50,35 @@ def make_rim(name="front_rim", ring_y=None, flip_rows=(), seam=False):
     return o
 
 
+def make_cut_rim(front_y, back_y, flip_rows=()):
+    """Tube cut in two along the lens line, as seams and flips leave it. Row 2 ends the front half, row 3 starts the
+    back half; UV v equals y."""
+    rows = [-0.3, -0.1, front_y, back_y, 0.1, 0.3]
+    bm = bmesh.new()
+    verts = []
+    for y in rows:
+        row = []
+        for i in range(N):
+            a = 2 * math.pi * i / N
+            row.append(bm.verts.new((RADIUS * math.cos(a), y(i) if callable(y) else y, RADIUS * math.sin(a))))
+        verts.append(row)
+    uv = bm.loops.layers.uv.new("UVMap")
+    for r in (0, 1, 3, 4):
+        for i in range(N):
+            j = (i + 1) % N
+            f = bm.faces.new((verts[r][i], verts[r + 1][i], verts[r + 1][j], verts[r][j]))
+            if r in flip_rows:
+                f.normal_flip()
+            for lp in f.loops:
+                lp[uv].uv = (0.0, lp.vert.co.y)
+    me = bpy.data.meshes.new("front_rim")
+    bm.to_mesh(me)
+    bm.free()
+    o = bpy.data.objects.new("front_rim", me)
+    bpy.context.scene.collection.objects.link(o)
+    return o
+
+
 def make_lens(name="lens_left"):
     """Flat fan at y=0, wider than the tube so every edge crossing y=0 hits it."""
     r = RADIUS + 0.05
@@ -74,6 +103,7 @@ class LensGapTests(unittest.TestCase):
     def setUp(self):
         bpy.ops.wm.read_factory_settings(use_empty=True)
         lens_gap.register()
+        bpy.context.scene.mk_lens_gap_offset = OFFSET
         bpy.context.view_layer.update()
 
     def tearDown(self):
@@ -98,6 +128,20 @@ class LensGapTests(unittest.TestCase):
             self.assertAlmostEqual(math.hypot(v.x, v.z), RADIUS, places=5)
         self.assertEqual(state(lens), lens_before)
         self.assertEqual([tuple(rim.data.vertices[i].co) for i in range(N)], others)
+
+    def test_offset_defaults_to_exactly_on_the_lens(self):
+        rim = make_cut_rim(lambda i: 0.005 if i % 2 else -0.004, lambda i: -0.006 if i % 2 else 0.007, flip_rows=(3, 4))
+        make_lens()
+        bpy.context.scene.property_unset("mk_lens_gap_offset")
+        self.assertEqual(bpy.context.scene.mk_lens_gap_offset, 0.0)
+        self.activate(rim)
+        bpy.ops.modelerkit.close_lens_gap()
+        for i in range(2 * N, 4 * N):
+            self.assertAlmostEqual(rim.data.vertices[i].co.y, 0.0, places=5)
+        once = state(rim)[0]
+        bpy.ops.modelerkit.close_lens_gap()  # verts already on the lens: must not count as unreachable
+        for a, b in zip(once, state(rim)[0]):
+            self.assertAlmostEqual((Vector(a) - Vector(b)).length, 0.0, places=5)
 
     def test_second_run_changes_nothing(self):
         rim = make_rim()
@@ -210,6 +254,64 @@ class LensGapTests(unittest.TestCase):
         bpy.ops.object.mode_set(mode="OBJECT")
         self.assertEqual(state(rim), before)
         self.assertEqual({v.index for v in rim.data.vertices if v.select}, set(range(N, 2 * N)))
+
+    def test_cut_rim_both_sides_meet_past_the_open_ends(self):
+        # alternating sides of the lens: half the verts slide inward, half have to go past their open end
+        rim = make_cut_rim(lambda i: 0.005 if i % 2 else -0.004, lambda i: -0.006 if i % 2 else 0.007, flip_rows=(3, 4))
+        make_lens()
+        before = state(rim)[1]
+        self.activate(rim)
+        bpy.ops.modelerkit.close_lens_gap()
+        for i in range(2 * N, 4 * N):
+            v = rim.data.vertices[i].co
+            self.assertAlmostEqual(v.y, -OFFSET, places=5)
+            self.assertAlmostEqual(math.hypot(v.x, v.z), RADIUS, places=5)
+        self.assertEqual(state(rim)[1], before)
+        uv = rim.data.uv_layers.active.data
+        for lp in rim.data.loops:
+            self.assertAlmostEqual(uv[lp.index].uv.y, rim.data.vertices[lp.vertex_index].co.y, places=5)
+
+    def test_cut_rim_offset_leads_away_from_a_front_band(self):
+        rim = make_cut_rim(lambda i: -0.004, lambda i: 0.005, flip_rows=(0, 1))
+        make_lens()
+        self.activate(rim)
+        bpy.ops.modelerkit.close_lens_gap()
+        for i in range(2 * N, 4 * N):
+            self.assertAlmostEqual(rim.data.vertices[i].co.y, OFFSET, places=5)
+
+    def test_selecting_a_cut_band_moves_the_other_side_too(self):
+        rim = make_cut_rim(lambda i: -0.04, lambda i: 0.04)  # past Search Distance, so only the selection can find it
+        make_lens()
+        self.activate(rim)
+        bpy.ops.object.mode_set(mode="EDIT")
+        bm = bmesh.from_edit_mesh(rim.data)
+        for f in bm.faces:
+            f.select = f.calc_center_median().y > 0
+        bm.select_flush_mode()
+        bmesh.update_edit_mesh(rim.data)
+        bpy.ops.modelerkit.close_lens_gap()
+        bpy.ops.object.mode_set(mode="OBJECT")
+        for i in range(2 * N, 4 * N):
+            self.assertAlmostEqual(rim.data.vertices[i].co.y, -OFFSET, places=5)
+
+    def test_cut_too_far_for_one_edge_moves_nothing(self):
+        rim = make_cut_rim(lambda i: -0.095, lambda i: 0.005)  # front edge is 0.005 long and stops 0.095 from the lens
+        make_lens()
+        self.activate(rim)
+        before = state(rim)
+        bpy.ops.object.mode_set(mode="EDIT")
+        bm = bmesh.from_edit_mesh(rim.data)
+        bm.verts.ensure_lookup_table()
+        ring = {bm.verts[i] for i in range(2 * N, 3 * N)}
+        for f in bm.faces:
+            f.select = False
+        for e in bm.edges:
+            e.select = e.verts[0] in ring and e.verts[1] in ring
+        bmesh.update_edit_mesh(rim.data)
+        with self.assertRaises(RuntimeError):
+            bpy.ops.modelerkit.close_lens_gap()
+        bpy.ops.object.mode_set(mode="OBJECT")
+        self.assertEqual(state(rim), before)
 
     def test_open_ring_refused(self):
         rim = make_rim(ring_y=lambda i: 0.01 if i < N // 2 else 0.09)

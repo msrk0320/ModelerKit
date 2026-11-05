@@ -36,9 +36,9 @@ Do this once so Blender updates Modeler Kit by itself:
 
 For a thin line beside the lens, when the rim's edge loop stops short of it. Click the rim so it is the active object. Lens meshes must be named `lens_...`.
 - **Search Distance:** how close a loop must be to a lens to be found on its own. Selecting the loop in Edit Mode ignores this.
-- **Offset:** how far past the lens the loop lands. Too low can let the line return; too high shows the rim from the other side. The defaults were set on one model, so check the result.
+- **Offset:** how far past the lens the loop lands. The default, 0, sits exactly on the lens. Raise it only if the line returns; too high shows the flipped band from the front.
 - **Check:** measures the gap and moves nothing. If some verts can't reach the lens, it selects them.
-- **Close Gap:** slides the loop onto each lens along the rim's own edges, and the UVs follow. In Edit Mode, the selected edges or band of faces decide which loop; otherwise it uses the closest closed loop by each lens. It finds which way to go from the faces pointing inward, or the selected band. If there are none, it treats -Y as the front of the frame.
+- **Close Gap:** slides the loop onto each lens along the rim's own edges, and the UVs follow. In Edit Mode, the selected edges or band of faces decide which loop; otherwise it uses the closest closed loop by each lens. On a rim cut along the lens line, both sides of the cut move together, and selecting one side finds the other. Pressing it again leaves verts already on the lens where they are. It finds which way to go from the faces pointing inward, or the selected band. If there are none, it treats -Y as the front of the frame.
 - It never changes the lens or flipped faces. Custom normals can shift slightly.
 - If any vert can't reach the lens, nothing moves and those verts are selected. It also refuses a lens with no closed loop, a rim with shape keys, and anything while Explode is above 0.
 
