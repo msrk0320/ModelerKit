@@ -43,7 +43,7 @@ Do this once so Blender updates Modeler Kit by itself:
 - **Reload Textures:** reads already imported images again after a new Painter export. For a new map, press Import Textures. If a file was deleted it warns with the name, and that texture may show pink.
 - **Install Painter Export:** copies a small script into Painter's startup folder, replacing an older copy. Restart Painter, then use **File > Export Textures to Project Folder**. It writes every texture set to `<spp folder>\<spp name>\Textures\` as 2048 PNGs with the names Import Textures expects. Tested on Painter 12.1; it needs a Painter version that includes PySide6.
 
-**Uninstall Modeler Kit** (bottom of the panel): asks to confirm, then removes the add-on from Blender. Your scenes are not changed.
+**Uninstall Modeler Kit:** in Edit > Preferences > Get Extensions (or Add-ons), expand Modeler Kit and press Uninstall Modeler Kit. It asks to confirm, then removes the add-on from Blender. Your scenes are not changed.
 
 ## Good to know
 

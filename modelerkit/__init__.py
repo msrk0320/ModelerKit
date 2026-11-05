@@ -2,9 +2,9 @@
 
 import bpy
 
-from . import explode_slider, lock_location, panel, sp_texture_link, uv_material
+from . import explode_slider, lock_location, panel, prefs, sp_texture_link, uv_material
 
-MODULES = (explode_slider, lock_location, uv_material, sp_texture_link, panel)
+MODULES = (explode_slider, lock_location, uv_material, sp_texture_link, prefs, panel)
 
 
 UPDATE_URL = "https://raw.githubusercontent.com/msrk0320/ModelerKit/master/dist/index.json"
