@@ -1,6 +1,7 @@
 """Import / reload textures written by Painter's 'Export Textures to Project Folder'."""
 
 import ctypes
+import filecmp
 import os
 import re
 import shutil
@@ -229,11 +230,27 @@ def _painter_folder():
     return os.path.join(docs, "Adobe", "Adobe Substance 3D Painter")
 
 
+def _painter_script_current():
+    """True when Painter's startup folder already holds this version of the script."""
+    installed = os.path.join(_painter_folder(), "python", "startup", os.path.basename(PAINTER_SCRIPT))
+    try:
+        return filecmp.cmp(PAINTER_SCRIPT, installed, shallow=False)
+    except OSError:
+        return False
+
+
 class MODELERKIT_OT_install_painter_export(bpy.types.Operator):
     bl_idname = "modelerkit.install_painter_export"
     bl_label = "Install Painter Export"
     bl_description = ("Copy the script behind Painter's File > Export Textures to Project Folder "
                       "into Painter's startup folder, replacing an older copy")
+
+    @classmethod
+    def poll(cls, context):
+        if _painter_script_current():
+            cls.poll_message_set("Already installed")
+            return False
+        return True
 
     def execute(self, context):
         painter = _painter_folder()

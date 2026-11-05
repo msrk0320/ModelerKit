@@ -86,10 +86,10 @@ class PanelTests(Base):
         panel.VIEW3D_PT_modelerkit.draw(type("P", (), {"layout": layout})(), bpy.context)
         self.assertEqual(set(layout.ops), {
             "modelerkit.explode_reset", "modelerkit.toggle_lock_location", "modelerkit.single_uv_map",
-            "modelerkit.name_materials_from_root",
+            "modelerkit.check_lens_gap", "modelerkit.close_lens_gap", "modelerkit.name_materials_from_root",
             "modelerkit.reload_textures", "modelerkit.import_textures", "modelerkit.install_painter_export"})
         self.assertEqual(set(layout.props), {"mk_explode_factor", "mk_explode_axis", "mk_explode_selected_only",
-                                             "mk_sp_texture_folder",
+                                             "mk_lens_gap_search", "mk_lens_gap_offset", "mk_sp_texture_folder",
                                              "mk_sp_import_normal"})
         for idname in layout.ops:
             group, name = idname.split(".")
@@ -249,6 +249,16 @@ class InstallPainterExportTests(Base):
         target.write_text("old")
         self.assertEqual(bpy.ops.modelerkit.install_painter_export(), {"FINISHED"})
         self.assertEqual(target.read_bytes(), Path(sp_texture_link.PAINTER_SCRIPT).read_bytes())
+
+    def test_button_greys_out_once_installed_and_returns_for_a_different_copy(self):
+        self.assertTrue(bpy.ops.modelerkit.install_painter_export.poll())
+        bpy.ops.modelerkit.install_painter_export()
+        self.assertFalse(bpy.ops.modelerkit.install_painter_export.poll())
+        target = Path(self.tmp, "python", "startup", "export_to_project_folder.py")
+        target.write_text("old")
+        self.assertTrue(bpy.ops.modelerkit.install_painter_export.poll())
+        target.unlink()
+        self.assertTrue(bpy.ops.modelerkit.install_painter_export.poll())
 
     def test_no_painter_folder_says_so_and_creates_nothing(self):
         missing = os.path.join(self.tmp, "none")
