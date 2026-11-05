@@ -32,6 +32,17 @@ Do this once so Blender updates Modeler Kit by itself:
 - **Lock Location:** locks the selected objects and their children so they can't be moved by accident. Press again to unlock. This replaces any partial lock a part had of its own.
 - Explode still moves locked parts.
 
+**Dimensions**
+
+Compares the task's measurements with the model, live. The file needs one top parent with `frame`, `lenses` and `temples` under it, and parts named `front_rim`, `lens_left`, `lens_right`, `temple_left` and `temple_right`. 1 Blender unit counts as 1 cm, whatever the scene's unit scale says.
+- **Exact Dimensions:** on by default. A measurement must equal its spec at 0.1 mm. Off, these ranges apply: Frame ±3, Bridge ±2, Lens Height ±3, Temple ±10 mm.
+- **Paste box:** paste a line like `Lens Height 40mm Bridge Width 19mm Temple Length 140mm Frame Width 140mm` to fill the fields, in any order. If it stays in the box, no measurement was found.
+- **Frame Width, Bridge, Lens Height, Temple:** type the spec in mm, or leave 0 to skip it. What the model measures shows beside it, with a dot: green is in range, amber is close to a limit or blocking a fit, red is out, grey is no spec or a missing part. Frame Width is the rim only, so temples that flare past it don't count. Bridge is the gap between the lenses.
+- **Lens Width:** a readout, with no spec.
+- **Show / Hide Measurements:** draws the lines and values on the model in the 3D view. It adds nothing to the scene or an export.
+- **Fit to Spec:** scales the top parent evenly about the world origin until every measurement fits, closest to the exact Frame Width. The panel shows the factor and the result first. It doesn't change the mesh or UVs. It's grey when everything already fits, and while there is Explode data (press **Reset** first). If no single scale can fit, it names the two measurements that clash, so fix the model's proportions.
+- Warnings also show for a rotated top parent, a folded temple, overlapping lenses, and left and right sizes more than 0.5 mm apart.
+
 **Close Lens Gap**
 
 For a thin line beside the lens, when the rim's edge loop stops short of it. Click the rim so it is the active object. Lens meshes must be named `lens_...`.

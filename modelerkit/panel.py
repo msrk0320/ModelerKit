@@ -2,7 +2,7 @@
 
 import bpy
 
-from . import explode_slider, lens_gap, lock_location, sp_texture_link, uv_material
+from . import dimensions, explode_slider, lens_gap, lock_location, sp_texture_link, uv_material
 
 
 class VIEW3D_PT_modelerkit(bpy.types.Panel):
@@ -14,7 +14,8 @@ class VIEW3D_PT_modelerkit(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        for title, module in (("Explode", explode_slider), ("Lock", lock_location), ("Close Lens Gap", lens_gap),
+        for title, module in (("Explode", explode_slider), ("Lock", lock_location), ("Dimensions", dimensions),
+                              ("Close Lens Gap", lens_gap),
                               ("UV & Material Names", uv_material), ("SP Textures", sp_texture_link)):
             box = layout.box()
             box.label(text=title)
