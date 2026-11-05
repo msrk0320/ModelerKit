@@ -1,10 +1,10 @@
-"""Modeler Kit: Explode, Lock Location, UV & Material Names and SP Textures in one sidebar panel."""
+"""Modeler Kit: Explode, Lock Location, Dimensions, UV & Material Names and SP Textures in one sidebar panel."""
 
 import bpy
 
-from . import explode_slider, lock_location, panel, prefs, sp_texture_link, uv_material
+from . import dimensions, explode_slider, lock_location, panel, prefs, sp_texture_link, uv_material
 
-MODULES = (explode_slider, lock_location, uv_material, sp_texture_link, prefs, panel)
+MODULES = (explode_slider, lock_location, dimensions, uv_material, sp_texture_link, prefs, panel)
 
 
 UPDATE_URL = "https://raw.githubusercontent.com/msrk0320/ModelerKit/master/dist/index.json"

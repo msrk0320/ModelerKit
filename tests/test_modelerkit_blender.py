@@ -86,10 +86,12 @@ class PanelTests(Base):
         panel.VIEW3D_PT_modelerkit.draw(type("P", (), {"layout": layout})(), bpy.context)
         self.assertEqual(set(layout.ops), {
             "modelerkit.explode_reset", "modelerkit.toggle_lock_location", "modelerkit.single_uv_map",
-            "modelerkit.name_materials_from_root",
+            "modelerkit.dimensions_fit", "modelerkit.name_materials_from_root",
             "modelerkit.reload_textures", "modelerkit.import_textures", "modelerkit.install_painter_export"})
         self.assertEqual(set(layout.props), {"mk_explode_factor", "mk_explode_axis", "mk_explode_selected_only",
                                              "mk_sp_texture_folder",
+                                             "exact", "paste", "frame_width", "bridge", "lens_height",
+                                             "temple_length", "show",
                                              "mk_sp_import_normal"})
         for idname in layout.ops:
             group, name = idname.split(".")
