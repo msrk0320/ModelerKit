@@ -57,6 +57,7 @@ class Base(unittest.TestCase):
         dimensions.register()
         self.scene = bpy.context.scene
         self.props = self.scene.mk_dimensions
+        self.assertTrue(self.props.exact_frame)  # the default
 
     def tearDown(self):
         dimensions.unregister()
@@ -310,6 +311,15 @@ class ExactFrameTests(Base):
         self.assertEqual(bpy.ops.modelerkit.dimensions_fit(), {"FINISHED"})
         self.assertMm(self.values()["frame_width"], 141.0)
         self.assertEqual(logic.statuses(self.values(), logic.specs_of(self.props))["lens_height"], "out")
+
+    def test_off_gives_the_frame_its_range(self):
+        self.props.exact_frame = False
+        self.props.paste = "Frame Width 141mm"
+        item = next(i for i in overlay.geometry(measure.result(self.scene), logic.specs_of(self.props), False)
+                    if i.key == "frame_width")
+        self.assertEqual((item.status, item.spec_text), ("ok", "spec 141 ±3"))
+        with self.assertRaisesRegex(RuntimeError, "Nothing to fit"):
+            bpy.ops.modelerkit.dimensions_fit()
 
 
 class FitTests(Base):

@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 id = "modelerkit"
-version = "1.7.2"
+version = "1.7.3"
 name = "Modeler Kit"
 tagline = "Explode, lock location, UV and material names, SP textures"
 maintainer = "MadSrei"

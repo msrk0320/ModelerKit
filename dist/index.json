@@ -7,7 +7,7 @@
       "id": "modelerkit",
       "name": "Modeler Kit",
       "tagline": "Explode, lock location, UV and material names, SP textures",
-      "version": "1.7.2",
+      "version": "1.7.3",
       "type": "add-on",
       "maintainer": "MadSrei",
       "license": [
@@ -22,9 +22,9 @@
         "Material",
         "UV"
       ],
-      "archive_url": "./modelerkit-1.7.2.zip",
-      "archive_size": 30336,
-      "archive_hash": "sha256:562782c08a22247da27542fae8f94af00d0af664a00894c4024b162eb4ac7c0a"
+      "archive_url": "./modelerkit-1.7.3.zip",
+      "archive_size": 30593,
+      "archive_hash": "sha256:e0af39a9c35bfc3a1675d42efe20cd23c909d0b901612265eebf2e463c217c94"
     }
   ]
 }

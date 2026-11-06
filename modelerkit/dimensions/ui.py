@@ -22,6 +22,9 @@ def _on_change(_self, _context):
 
 
 class MODELERKIT_Dimensions(bpy.types.PropertyGroup):
+    exact_frame: bpy.props.BoolProperty(name="Exact Frame Fit", default=True, update=_on_change,
+                                        description="On: Frame Width must equal its spec at QA's 0.1 mm, and Fit to Spec "
+                                                    "lands on it. Off: Frame Width may be ±3 mm like the others")
     frame_width: bpy.props.FloatProperty(name="Frame Width", min=0.0, max=1000.0, precision=1, update=_on_change)
     bridge: bpy.props.FloatProperty(name="Bridge", min=0.0, max=1000.0, precision=1, update=_on_change)
     lens_height: bpy.props.FloatProperty(name="Lens Height", min=0.0, max=1000.0, precision=1, update=_on_change)
@@ -53,7 +56,7 @@ class MODELERKIT_OT_dimensions_fit(bpy.types.Operator):
             self.report({"ERROR"}, res.error)
             return {"CANCELLED"}
         props = context.scene.mk_dimensions
-        fit = logic.fit(res.values, logic.specs_of(props))
+        fit = logic.fit(res.values, logic.specs_of(props), props.exact_frame)
         if fit.state != "fit":
             self.report({"ERROR"}, "Nothing to fit." if fit.state != "conflict" else "No single scale fits: fix the model's proportions.")
             return {"CANCELLED"}
@@ -70,14 +73,15 @@ def draw(layout, context):
     layout.prop(props, "paste", text="", icon="PASTEDOWN", placeholder="Paste task Dimensions line")
     if props.paste:
         layout.label(text="No measurements found in that text", icon="ERROR")
+    layout.prop(props, "exact_frame")
     specs = logic.specs_of(props)
     if not any(specs.values()):
         layout.label(text="Enter measurements", icon="INFO")
     res = measure.result(context.scene)
     if res.error:
         layout.label(text=res.error, icon="ERROR")
-    fit = logic.fit(res.values, specs)
-    found = logic.statuses(res.values, specs, fit.conflict)
+    fit = logic.fit(res.values, specs, props.exact_frame)
+    found = logic.statuses(res.values, specs, fit.conflict, props.exact_frame)
     for key in logic.KEYS:
         row = layout.row(align=True)
         row.alert = found[key] == "out"
@@ -100,7 +104,7 @@ def draw(layout, context):
     if fit.state == "fit":
         box = layout.box()
         box.label(text="After the fit: " + ", ".join("%.1f" % fit.after[k] for k in logic.KEYS if k in fit.after))
-        after = logic.statuses(fit.after, specs)
+        after = logic.statuses(fit.after, specs, exact_frame=props.exact_frame)
         off = [logic.LABELS[k] for k in logic.KEYS if after[k] == "out"]
         if off:
             box.label(text="Out of range after: " + ", ".join(off), icon="ERROR")

@@ -121,6 +121,26 @@ class ExactFrameTests(unittest.TestCase):
     def test_spec_text_has_no_range_for_the_frame(self):
         self.assertEqual(logic.spec_text("frame_width", 140.0), "spec 140")
         self.assertEqual(logic.spec_text("bridge", 19.0), "spec 19 ±2")
+        self.assertEqual(logic.spec_text("frame_width", 140.0, False), "spec 140 ±3")
+
+
+class FrameRangeTests(unittest.TestCase):
+    """Exact Frame Fit off: Frame Width gets its ±3 too."""
+
+    def test_frame_in_range_needs_nothing(self):
+        self.assertEqual(logic.fit(values(138.5), SPECS, False).state, "ok")
+        self.assertEqual(logic.statuses(values(138.5), SPECS, exact_frame=False)["frame_width"], "ok")
+
+    def test_factor_aims_at_the_frame_inside_the_overlap(self):
+        # Frame alone wants 140/135, but lens height 42 caps the factor at 43/42
+        got = logic.fit(values(135.0, 19.0, 42.0, 140.0), SPECS, False)
+        self.assertEqual(got.state, "fit")
+        self.assertAlmostEqual(got.factor, 43 / 42)
+
+    def test_conflict_names_the_frame(self):
+        got = logic.fit(values(lens=48.0), SPECS, False)
+        self.assertEqual(got.state, "conflict")
+        self.assertEqual(set(got.conflict), {"frame_width", "lens_height"})
 
 
 class StatusesTests(unittest.TestCase):
