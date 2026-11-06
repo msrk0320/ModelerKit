@@ -246,10 +246,10 @@ class OverlayTests(Base):
 
     def test_conflict_outlines_both_members(self):
         build()
-        self.props.paste = "Frame Width 140mm Lens Height 30mm"
+        self.props.paste = "Temple Length 140mm Lens Height 30mm"
         items = self.items()
-        self.assertEqual((items["frame_width"].status, items["lens_height"].status), ("near", "out"))
-        self.assertEqual(len(items["frame_width"].outlines), 12)
+        self.assertEqual((items["temple_length"].status, items["lens_height"].status), ("near", "out"))
+        self.assertEqual(len(items["temple_length"].outlines), 24)  # both temples
         self.assertEqual(len(items["lens_height"].outlines), 24)  # both lenses
 
     def test_no_spec_is_grey_without_spec_text(self):
@@ -307,12 +307,17 @@ class ExactTests(Base):
         self.assertEqual(bpy.ops.modelerkit.dimensions_fit(), {"FINISHED"})
         self.assertMm(self.values()["frame_width"], 141.0)
 
-    def test_fit_refuses_what_the_tolerance_would_have_allowed(self):
+    def test_fit_makes_the_frame_exact_and_leaves_lens_out(self):
         self.props.paste = "Frame Width 141mm Lens Height 40mm"
-        with self.assertRaisesRegex(RuntimeError, "No single scale"):
-            bpy.ops.modelerkit.dimensions_fit()
+        self.assertEqual(bpy.ops.modelerkit.dimensions_fit(), {"FINISHED"})
+        self.assertMm(self.values()["frame_width"], 141.0)
+        self.assertEqual(logic.status(self.values()["lens_height"], 40.0, 0.0), "out")
+
+    def test_fit_makes_the_frame_exact_with_the_tolerance_on(self):
         self.props.exact = False
-        self.assertEqual(logic.fit(self.values(), logic.specs_of(self.props)).state, "ok")
+        self.props.paste = "Frame Width 141mm"
+        self.assertEqual(bpy.ops.modelerkit.dimensions_fit(), {"FINISHED"})
+        self.assertMm(self.values()["frame_width"], 141.0)
 
 
 class FitTests(Base):
@@ -364,7 +369,7 @@ class FitTests(Base):
 
     def test_refuses_on_a_conflict(self):
         build()
-        self.props.paste = "Frame Width 140mm Lens Height 30mm"
+        self.props.paste = "Temple Length 140mm Lens Height 30mm"
         with self.assertRaisesRegex(RuntimeError, "No single scale"):
             self.fit()
         self.assertEqual(bpy.data.objects["SKU"].scale.x, 1.0)

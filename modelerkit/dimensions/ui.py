@@ -42,7 +42,7 @@ def _has_explode_data():
 class MODELERKIT_OT_dimensions_fit(bpy.types.Operator):
     bl_idname = "modelerkit.dimensions_fit"
     bl_label = "Fit to Spec"
-    bl_description = "Scale the whole model about the world origin so every measurement is in range"
+    bl_description = "Scale the whole model about the world origin so Frame Width is exact"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
@@ -95,7 +95,7 @@ def draw(layout, context):
     exploded = _has_explode_data()
     row = layout.row()
     row.enabled = fit.state == "fit" and not exploded
-    text = {"fit": "Fit to Spec (×%.3f)" % (fit.factor or 1.0), "ok": "Fit to Spec: already in range",
+    text = {"fit": "Fit to Spec (×%.3f)" % (fit.factor or 1.0), "ok": "Fit to Spec: already fits",
             "conflict": "Fit to Spec: not possible", "none": "Fit to Spec"}[fit.state]
     row.operator(MODELERKIT_OT_dimensions_fit.bl_idname, text=text, icon="FULLSCREEN_ENTER")
     if exploded:
@@ -103,6 +103,10 @@ def draw(layout, context):
     if fit.state == "fit":
         box = layout.box()
         box.label(text="After the fit: " + ", ".join("%.1f" % fit.after[k] for k in logic.KEYS if k in fit.after))
+        after = logic.statuses(fit.after, specs, exact=props.exact)
+        off = [logic.LABELS[k] for k in logic.KEYS if after[k] == "out"]
+        if off:
+            box.label(text="Out of range after: " + ", ".join(off), icon="ERROR")
     elif fit.state == "conflict":
         box = layout.box()
         box.alert = True

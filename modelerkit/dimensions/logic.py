@@ -47,11 +47,17 @@ def status(value, spec, tolerance):
 
 
 def fit(values, specs, exact=False):
-    """The uniform factor that puts every measurement with a spec in range, closest to the exact frame width."""
+    """The uniform factor that makes Frame Width exact, wherever that leaves the others. Without a Frame Width, the
+    factor closest to 1 that puts every measurement with a spec in range."""
     specs = {k: round(v or 0.0, 1) for k, v in specs.items()}  # status compares at one decimal too
     keys = [k for k in KEYS if specs.get(k) and values.get(k) and values[k] > 0]
     if not keys:
         return Fit("none", None, None, ())
+    if "frame_width" in keys:  # QA needs the frame exact; the rest may land off their tolerance
+        if status(values["frame_width"], specs["frame_width"], 0.0) != "out":
+            return Fit("ok", None, None, ())
+        factor = specs["frame_width"] / values["frame_width"]
+        return Fit("fit", factor, {k: values[k] * factor for k in keys}, ())
     if all(status(values[k], specs[k], tolerance_of(k, exact)) != "out" for k in keys):
         return Fit("ok", None, None, ())
     reach = {k: EXACT_REACH if exact else TOLERANCE[k] for k in keys}
@@ -60,8 +66,7 @@ def fit(values, specs, exact=False):
     low_key, high_key = max(low, key=low.get), min(high, key=high.get)
     if low[low_key] > high[high_key]:
         return Fit("conflict", None, None, (low_key, high_key))
-    wanted = specs["frame_width"] / values["frame_width"] if "frame_width" in keys else 1.0
-    factor = min(max(wanted, low[low_key]), high[high_key])
+    factor = min(max(1.0, low[low_key]), high[high_key])
     return Fit("fit", factor, {k: values[k] * factor for k in keys}, ())
 
 
