@@ -118,6 +118,22 @@ class MeasureTests(Base):
         measure.mark_dirty()
         self.assertIn("2 product roots", measure.result(self.scene).error)
 
+    def test_mirror_modifier_counts_the_mirrored_half(self):
+        build()
+        rim = bpy.data.objects["front_rim"]
+        for v in rim.data.vertices:
+            v.co.x = max(v.co.x, 0.0)
+        rim.modifiers.new("Mirror", "MIRROR")
+        self.refresh()
+        self.assertMm(self.values()["frame_width"], 140.0)
+
+    def test_quaternion_rotated_root_adds_a_note(self):
+        root = build()
+        root.rotation_mode = "QUATERNION"
+        root.rotation_quaternion = (0.995, 0.0, 0.0, 0.0998)
+        self.refresh()
+        self.assertTrue(any("rotated" in n for n in measure.result(self.scene).notes))
+
     def test_rotated_root_folded_temple_and_mismatch_add_notes(self):
         root = build()
         self.assertEqual(measure.result(self.scene).notes, [])
@@ -368,6 +384,15 @@ class FitTests(Base):
         with self.assertRaisesRegex(RuntimeError, "Explode"):
             self.fit()
         self.assertEqual(bpy.data.objects["SKU"].scale.x, 1.0)
+
+    def test_refuses_a_rotated_root(self):
+        root = build()
+        root.rotation_euler.z = 0.2
+        self.refresh()
+        self.props.paste = "Frame Width 150mm"
+        with self.assertRaisesRegex(RuntimeError, "rotation"):
+            self.fit()
+        self.assertEqual(root.scale.x, 1.0)
 
     def test_refuses_on_a_conflict(self):
         build()

@@ -35,11 +35,6 @@ class MODELERKIT_Dimensions(bpy.types.PropertyGroup):
                                  update=_on_change)
 
 
-def _has_explode_data():
-    return (any(explode_slider.traces(o) or explode_slider.explode_key(o) for o in bpy.data.objects)
-            or any(explode_slider.traces(sc) for sc in bpy.data.scenes))
-
-
 class MODELERKIT_OT_dimensions_fit(bpy.types.Operator):
     bl_idname = "modelerkit.dimensions_fit"
     bl_label = "Fit to Spec"
@@ -47,13 +42,16 @@ class MODELERKIT_OT_dimensions_fit(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-        if _has_explode_data():
+        if explode_slider.has_data():
             self.report({"ERROR"}, "Press Explode > Reset first: it would restore the old size.")
             return {"CANCELLED"}
         measure.mark_dirty()
         res = measure.result(context.scene)
         if res.error:
             self.report({"ERROR"}, res.error)
+            return {"CANCELLED"}
+        if measure.rotated(res.root):
+            self.report({"ERROR"}, "Clear the rotation on %s first: the measurements assume it faces front." % res.root.name)
             return {"CANCELLED"}
         props = context.scene.mk_dimensions
         fit = logic.fit(res.values, logic.specs_of(props), props.exact_frame)
@@ -93,9 +91,9 @@ def draw(layout, context):
         layout.label(text="Lens Width: %.1f" % res.lens_width)
     layout.prop(props, "show", toggle=True, icon="HIDE_OFF" if props.show else "HIDE_ON",
                 text="Hide Measurements" if props.show else "Show Measurements")
-    exploded = _has_explode_data()
+    exploded = explode_slider.has_data()
     row = layout.row()
-    row.enabled = fit.state == "fit" and not exploded
+    row.enabled = fit.state == "fit" and not exploded and not (res.root and measure.rotated(res.root))
     text = {"fit": "Fit to Spec (×%.3f)" % (fit.factor or 1.0), "ok": "Fit to Spec: already fits",
             "conflict": "Fit to Spec: not possible", "none": "Fit to Spec"}[fit.state]
     row.operator(MODELERKIT_OT_dimensions_fit.bl_idname, text=text, icon="FULLSCREEN_ENTER")

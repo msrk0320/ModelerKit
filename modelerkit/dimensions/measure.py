@@ -3,7 +3,6 @@ to the GLB, so scale_length is ignored. Local vertices are cached per object unt
 
 from collections import namedtuple
 
-import bmesh
 import bpy
 import numpy as np
 from bpy.app.handlers import persistent
@@ -37,15 +36,16 @@ def _meshes(root, name):
 
 
 def _local_verts(o):
+    """Vertices as shown: after modifiers (a Mirror rim is twice its mesh) and live in Edit Mode."""
     cached = _verts.get(o.session_uid)
     if cached is not None:
         return cached
-    if o.mode == "EDIT":  # the mesh datablock lags behind until Edit Mode is left
-        cached = np.array([v.co[:] for v in bmesh.from_edit_mesh(o.data).verts], dtype=np.float64).reshape(-1, 3)
-    else:
-        cached = np.empty(len(o.data.vertices) * 3, dtype=np.float64)
-        o.data.vertices.foreach_get("co", cached)
-        cached = cached.reshape(-1, 3)
+    evaluated = o.evaluated_get(bpy.context.evaluated_depsgraph_get())
+    shown = evaluated.to_mesh()  # in Edit Mode .data is a wrapper with no vertices
+    cached = np.empty(len(shown.vertices) * 3, dtype=np.float64)
+    shown.vertices.foreach_get("co", cached)
+    evaluated.to_mesh_clear()
+    cached = cached.reshape(-1, 3)
     _verts[o.session_uid] = cached
     return cached
 
@@ -95,9 +95,14 @@ def _measure(scene):
     return Result(root, values, lens_width, {k: v for k, v in boxes.items() if v}, _notes(root, boxes), None)
 
 
+def rotated(root):
+    """Any rotation mode: Euler alone misses a quaternion-rotated root."""
+    return root.matrix_basis.to_quaternion().angle > 1e-4
+
+
 def _notes(root, boxes):
     notes = []
-    if any(abs(a) > 1e-4 for a in root.rotation_euler):
+    if rotated(root):
         notes.append("The root is rotated, so these numbers are unreliable.")
     for label, axes, a, b in (("Lens", (0, 2), "lens_left", "lens_right"), ("Temple", (1,), "temple_left", "temple_right")):
         if boxes[a] and boxes[b] and any(abs(_extent(boxes[a], i) - _extent(boxes[b], i)) > SIDE_MISMATCH for i in axes):

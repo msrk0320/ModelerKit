@@ -283,12 +283,14 @@ def can_run(cls, context, ok, why):
     return bool(ok)
 
 
+def has_data():
+    """True if any object or scene holds explode data (shape keys or custom properties)."""
+    return (any(traces(o) or explode_key(o) for o in bpy.data.objects)
+            or any(traces(sc) for sc in bpy.data.scenes))
+
+
 def poll_has_explode_data(cls, context):
-    """True if any object or scene has explode data (shape keys or custom properties)."""
-    return can_run(cls, context,
-                   any(traces(o) or explode_key(o) for o in bpy.data.objects)
-                   or any(traces(sc) or sc.mk_explode_factor for sc in bpy.data.scenes),
-                   "Nothing to reset")
+    return can_run(cls, context, has_data() or any(sc.mk_explode_factor for sc in bpy.data.scenes), "Nothing to reset")
 
 
 class MODELERKIT_OT_explode_reset(bpy.types.Operator):

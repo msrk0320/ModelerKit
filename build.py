@@ -13,15 +13,16 @@ DIST = HERE / "dist"
 version = re.search(r'^version = "(.+)"', (HERE / "modelerkit" / "blender_manifest.toml").read_text(), re.M).group(1)
 zip_path = DIST / f"modelerkit-{version}.zip"
 
-(DIST / "old").mkdir(parents=True, exist_ok=True)
-for old in DIST.glob("modelerkit-*.zip"):
-    if old != zip_path:
-        shutil.move(old, DIST / "old" / old.name)
 zip_path.unlink(missing_ok=True)
 subprocess.run([str(BLENDER), "--command", "extension", "build", "--source-dir", str(HERE / "modelerkit"),
                 "--output-dir", str(DIST)], check=True, stdout=subprocess.DEVNULL)
 if not zip_path.exists():
     raise SystemExit(f"Build failed: {zip_path.name} not written")
+# only once the new zip exists, so a failed build leaves index.json's zip in place
+(DIST / "old").mkdir(parents=True, exist_ok=True)
+for old in DIST.glob("modelerkit-*.zip"):
+    if old != zip_path:
+        shutil.move(old, DIST / "old" / old.name)
 subprocess.run([str(BLENDER), "--command", "extension", "server-generate", "--repo-dir", str(DIST)],
                check=True, stdout=subprocess.DEVNULL)
 print(f"Built {zip_path.name}; in Blender: Get Extensions > Check for Updates (or restart), then Update on Modeler Kit")

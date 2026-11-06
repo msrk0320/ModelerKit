@@ -6,8 +6,8 @@
       "schema_version": "1.0.0",
       "id": "modelerkit",
       "name": "Modeler Kit",
-      "tagline": "Explode, lock location, UV and material names, SP textures",
-      "version": "1.7.3",
+      "tagline": "Explode, dimensions, lens gap, UV and material names, textures",
+      "version": "1.7.4",
       "type": "add-on",
       "maintainer": "MadSrei",
       "license": [
@@ -22,9 +22,9 @@
         "Material",
         "UV"
       ],
-      "archive_url": "./modelerkit-1.7.3.zip",
-      "archive_size": 30593,
-      "archive_hash": "sha256:e0af39a9c35bfc3a1675d42efe20cd23c909d0b901612265eebf2e463c217c94"
+      "archive_url": "./modelerkit-1.7.4.zip",
+      "archive_size": 30672,
+      "archive_hash": "sha256:57dff258c46b2f45a1d0cbe3eb3b7e203d1771c5395761b45d6dfd0df3f7c13f"
     }
   ]
 }
