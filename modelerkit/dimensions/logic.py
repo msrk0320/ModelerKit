@@ -6,9 +6,8 @@ from collections import namedtuple
 KEYS = ("frame_width", "bridge", "lens_height", "temple_length")
 LABELS = {"frame_width": "Frame Width", "bridge": "Bridge", "lens_height": "Lens Height",
           "temple_length": "Temple Length"}
-TOLERANCE = {"frame_width": 3.0, "bridge": 2.0, "lens_height": 3.0, "temple_length": 10.0}  # mm, from the QA card
+TOLERANCE = {"frame_width": 0.0, "bridge": 2.0, "lens_height": 3.0, "temple_length": 10.0}  # mm; QA needs the frame exact
 NEAR = 0.1  # the last 10% of the tolerance reads as close to the limit
-EXACT_REACH = 0.049  # mm the fit may land from an exact spec and still read as it at one decimal; 0.05 can round away
 
 Fit = namedtuple("Fit", "state factor after conflict")  # state: none, ok, fit, conflict
 
@@ -26,12 +25,8 @@ def parse(text):
     return {next(k for k in KEYS if k[0] == name[0].lower()): float(number) for name, number in _FIELD.findall(text or "")}
 
 
-def tolerance_of(key, exact=False):
-    return 0.0 if exact else TOLERANCE[key]
-
-
-def spec_text(key, spec, exact=False):
-    return "spec %g" % spec if exact else "spec %g ±%g" % (spec, TOLERANCE[key])
+def spec_text(key, spec):
+    return "spec %g ±%g" % (spec, TOLERANCE[key]) if TOLERANCE[key] else "spec %g" % spec
 
 
 def status(value, spec, tolerance):
@@ -46,23 +41,22 @@ def status(value, spec, tolerance):
     return "near" if off > tolerance * (1 - NEAR) else "ok"
 
 
-def fit(values, specs, exact=False):
+def fit(values, specs):
     """The uniform factor that makes Frame Width exact, wherever that leaves the others. Without a Frame Width, the
     factor closest to 1 that puts every measurement with a spec in range."""
     specs = {k: round(v or 0.0, 1) for k, v in specs.items()}  # status compares at one decimal too
     keys = [k for k in KEYS if specs.get(k) and values.get(k) and values[k] > 0]
     if not keys:
         return Fit("none", None, None, ())
-    if "frame_width" in keys:  # QA needs the frame exact; the rest may land off their tolerance
-        if status(values["frame_width"], specs["frame_width"], 0.0) != "out":
+    if "frame_width" in keys:  # the rest may land off their tolerance
+        if status(values["frame_width"], specs["frame_width"], TOLERANCE["frame_width"]) != "out":
             return Fit("ok", None, None, ())
         factor = specs["frame_width"] / values["frame_width"]
         return Fit("fit", factor, {k: values[k] * factor for k in keys}, ())
-    if all(status(values[k], specs[k], tolerance_of(k, exact)) != "out" for k in keys):
+    if all(status(values[k], specs[k], TOLERANCE[k]) != "out" for k in keys):
         return Fit("ok", None, None, ())
-    reach = {k: EXACT_REACH if exact else TOLERANCE[k] for k in keys}
-    low = {k: (specs[k] - reach[k]) / values[k] for k in keys}
-    high = {k: (specs[k] + reach[k]) / values[k] for k in keys}
+    low = {k: (specs[k] - TOLERANCE[k]) / values[k] for k in keys}
+    high = {k: (specs[k] + TOLERANCE[k]) / values[k] for k in keys}
     low_key, high_key = max(low, key=low.get), min(high, key=high.get)
     if low[low_key] > high[high_key]:
         return Fit("conflict", None, None, (low_key, high_key))
@@ -70,9 +64,9 @@ def fit(values, specs, exact=False):
     return Fit("fit", factor, {k: values[k] * factor for k in keys}, ())
 
 
-def statuses(values, specs, conflict=(), exact=False):
+def statuses(values, specs, conflict=()):
     """Status per measurement. A conflict member still in range shows as near, since it blocks the fit."""
-    found = {k: status(values.get(k), specs.get(k), tolerance_of(k, exact)) for k in KEYS}
+    found = {k: status(values.get(k), specs.get(k), TOLERANCE[k]) for k in KEYS}
     for k in conflict:
         if found[k] == "ok":
             found[k] = "near"

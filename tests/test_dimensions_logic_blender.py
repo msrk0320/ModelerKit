@@ -53,7 +53,7 @@ class FitTests(unittest.TestCase):
         got = logic.fit(values(140.04), SPECS)
         self.assertEqual((got.state, got.factor), ("ok", None))
 
-    def test_frame_in_tolerance_but_not_exact_still_fits(self):
+    def test_frame_a_little_off_still_fits(self):
         got = logic.fit(values(138.5), SPECS)
         self.assertEqual(got.state, "fit")
         self.assertAlmostEqual(got.factor, 140 / 138.5)
@@ -106,36 +106,21 @@ class FitTests(unittest.TestCase):
         self.assertEqual(logic.fit(dict.fromkeys(logic.KEYS), SPECS).state, "none")
 
 
-class ExactTests(unittest.TestCase):
-    def test_status_allows_only_what_rounds_to_the_spec(self):
-        found = logic.statuses(values(140.04, 19.1, 40.0, 139.9), SPECS, exact=True)
-        self.assertEqual(found, {"frame_width": "ok", "bridge": "out", "lens_height": "ok", "temple_length": "out"})
-
-    def test_all_exact_needs_nothing(self):
-        self.assertEqual(logic.fit(values(140.04, 19.0, 40.0, 140.0), SPECS, True).state, "ok")
-
-    def test_single_spec_lands_on_it(self):
-        got = logic.fit(values(frame=133.0), {"frame_width": 140.0}, True)
-        self.assertAlmostEqual(got.factor, 140 / 133)
+class ExactFrameTests(unittest.TestCase):
+    def test_only_the_frame_must_round_to_its_spec(self):
+        found = logic.statuses(values(140.1, 20.5, 42.0, 131.0), SPECS)
+        self.assertEqual(found, {"frame_width": "out", "bridge": "ok", "lens_height": "ok", "temple_length": "ok"})
+        self.assertEqual(logic.statuses(values(140.04), SPECS)["frame_width"], "ok")
 
     def test_right_proportions_fit_all_four(self):
         v = values(133.0, 18.05, 38.0, 133.0)
-        got = logic.fit(v, SPECS, True)
+        got = logic.fit(v, SPECS)
         self.assertEqual(got.state, "fit")
-        after = {k: x * got.factor for k, x in v.items()}
-        self.assertEqual(set(logic.statuses(after, SPECS, exact=True).values()), {"ok"})
+        self.assertEqual(set(logic.statuses(got.after, SPECS).values()), {"ok"})
 
-    def test_frame_stays_exact_when_a_second_spec_misses(self):
-        got = logic.fit(values(133.0, 18.05, 38.05, 133.0), SPECS, True)
-        self.assertEqual(got.state, "fit")
-        self.assertAlmostEqual(got.factor, 140 / 133)
-        found = logic.statuses(got.after, SPECS, exact=True)
-        self.assertEqual((found["frame_width"], found["lens_height"]), ("ok", "out"))
-
-    def test_wrong_proportions_still_fit_the_frame(self):
-        v = values(133.0, 18.0, 38.2, 134.0)
-        self.assertAlmostEqual(logic.fit(v, SPECS).factor, 140 / 133)
-        self.assertAlmostEqual(logic.fit(v, SPECS, True).factor, 140 / 133)
+    def test_spec_text_has_no_range_for_the_frame(self):
+        self.assertEqual(logic.spec_text("frame_width", 140.0), "spec 140")
+        self.assertEqual(logic.spec_text("bridge", 19.0), "spec 19 ±2")
 
 
 class StatusesTests(unittest.TestCase):

@@ -67,12 +67,12 @@ def _lines(key, boxes, off):
     return None
 
 
-def geometry(res, specs, exact=False):
+def geometry(res, specs):
     """The Items to draw for a measure.Result. Pure geometry, so tests need no GPU."""
     if res.error:
         return []
-    fit = logic.fit(res.values, specs, exact)
-    found = logic.statuses(res.values, specs, fit.conflict, exact)
+    fit = logic.fit(res.values, specs)
+    found = logic.statuses(res.values, specs, fit.conflict)
     front = res.boxes.get("rim") or res.boxes.get("lens_left") or res.boxes.get("lens_right")
     size = (front[1].x - front[0].x) if front else 0.0
     if not size:
@@ -90,7 +90,7 @@ def geometry(res, specs, exact=False):
         spec = specs.get(key)
         items.append(Item(key, status, lines, [s for b in parts for s in _segments_of_box(b)] if problem else [],
                           (lines[0][0] + lines[0][1]) / 2, "%.1f" % value,
-                          logic.spec_text(key, spec, exact) if spec else ""))
+                          logic.spec_text(key, spec) if spec else ""))
     return items
 
 
@@ -161,7 +161,7 @@ def _draw():
     region, rv3d = context.region, context.region_data
     if props is None or not props.show or region is None or rv3d is None:
         return
-    items = geometry(measure.result(context.scene), logic.specs_of(props), props.exact)
+    items = geometry(measure.result(context.scene), logic.specs_of(props))
     shader = gpu.shader.from_builtin("UNIFORM_COLOR")
     gpu.state.blend_set("ALPHA")
     for item in items:

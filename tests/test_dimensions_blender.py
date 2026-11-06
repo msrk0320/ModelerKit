@@ -57,8 +57,6 @@ class Base(unittest.TestCase):
         dimensions.register()
         self.scene = bpy.context.scene
         self.props = self.scene.mk_dimensions
-        self.assertTrue(self.props.exact)  # the default
-        self.props.exact = False
 
     def tearDown(self):
         dimensions.unregister()
@@ -235,7 +233,8 @@ class OverlayTests(Base):
         self.props.paste = SPEC_LINE
         self.assertEqual(self.items()["frame_width"].outlines, [])
         self.assertEqual(self.items()["frame_width"].value_text, "140.0")
-        self.assertEqual(self.items()["frame_width"].spec_text, "spec 140 ±3")
+        self.assertEqual(self.items()["frame_width"].spec_text, "spec 140")
+        self.assertEqual(self.items()["bridge"].spec_text, "spec 19 ±2")
 
     def test_out_of_range_outlines_its_part(self):
         build()
@@ -290,15 +289,14 @@ class LabelTests(unittest.TestCase):
         self.assertGreaterEqual(third[1], second[1] + 20)
 
 
-class ExactTests(Base):
+class ExactFrameTests(Base):
     def setUp(self):
         super().setUp()
-        self.props.exact = True
         build()
 
     def test_overlay_drops_the_tolerance_and_outlines_a_small_miss(self):
         self.props.paste = "Frame Width 141mm"
-        got = overlay.geometry(measure.result(self.scene), logic.specs_of(self.props), True)
+        got = overlay.geometry(measure.result(self.scene), logic.specs_of(self.props))
         item = next(i for i in got if i.key == "frame_width")
         self.assertEqual((item.status, item.spec_text, len(item.outlines)), ("out", "spec 141", 12))
 
@@ -308,16 +306,10 @@ class ExactTests(Base):
         self.assertMm(self.values()["frame_width"], 141.0)
 
     def test_fit_makes_the_frame_exact_and_leaves_lens_out(self):
-        self.props.paste = "Frame Width 141mm Lens Height 40mm"
+        self.props.paste = "Frame Width 141mm Lens Height 37mm"
         self.assertEqual(bpy.ops.modelerkit.dimensions_fit(), {"FINISHED"})
         self.assertMm(self.values()["frame_width"], 141.0)
-        self.assertEqual(logic.status(self.values()["lens_height"], 40.0, 0.0), "out")
-
-    def test_fit_makes_the_frame_exact_with_the_tolerance_on(self):
-        self.props.exact = False
-        self.props.paste = "Frame Width 141mm"
-        self.assertEqual(bpy.ops.modelerkit.dimensions_fit(), {"FINISHED"})
-        self.assertMm(self.values()["frame_width"], 141.0)
+        self.assertEqual(logic.statuses(self.values(), logic.specs_of(self.props))["lens_height"], "out")
 
 
 class FitTests(Base):

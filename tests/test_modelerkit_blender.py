@@ -91,7 +91,7 @@ class PanelTests(Base):
             "modelerkit.reload_textures", "modelerkit.import_textures", "modelerkit.install_painter_export"})
         self.assertEqual(set(layout.props), {"mk_explode_factor", "mk_explode_axis", "mk_explode_selected_only",
                                              "mk_lens_gap_search", "mk_lens_gap_offset", "mk_sp_texture_folder",
-                                             "exact", "paste", "frame_width", "bridge", "lens_height",
+                                             "paste", "frame_width", "bridge", "lens_height",
                                              "temple_length", "show",
                                              "mk_sp_import_normal"})
         for idname in layout.ops:
