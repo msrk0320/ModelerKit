@@ -1,5 +1,7 @@
 """Run: blender --background --factory-startup --python-exit-code 1 --python tests\\test_dimensions_blender.py"""
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -406,6 +408,43 @@ class FitTests(Base):
         self.props.paste = SPEC_LINE
         with self.assertRaisesRegex(RuntimeError, "Nothing to fit"):
             self.fit()
+
+
+class SpecPresetTests(Base):
+    def setUp(self):
+        super().setUp()
+        tmp = tempfile.mkdtemp()
+        self.original = ui.specs_file
+        ui.specs_file = lambda: os.path.join(tmp, "sub", "specs.json")  # never the real config
+
+    def tearDown(self):
+        ui.specs_file = self.original
+        super().tearDown()
+
+    def test_save_then_load_by_sku_keeps_exact_frame(self):
+        build(root_name="ABC123")
+        self.props.paste = SPEC_LINE
+        self.props.exact_frame = False
+        bpy.ops.modelerkit.dimensions_save_spec()
+        self.props.frame_width = self.props.bridge = 0
+        self.props.exact_frame = True
+        bpy.ops.modelerkit.dimensions_load_spec(sku="ABC123")
+        self.assertEqual((self.props.frame_width, self.props.bridge, self.props.exact_frame), (140, 19, False))
+
+    def test_save_needs_one_top_parent(self):
+        with self.assertRaisesRegex(RuntimeError, "one top parent"):
+            bpy.ops.modelerkit.dimensions_save_spec()
+
+    def test_copy_report_lists_spec_model_and_notes(self):
+        build()
+        self.props.paste = SPEC_LINE
+        bpy.data.objects["lens_right"].scale.z = 1.5
+        self.refresh()
+        self.assertEqual(bpy.ops.modelerkit.dimensions_copy_report(), {"FINISHED"})
+        text = ui.report_text(bpy.context)  # the background clipboard can't be read back
+        self.assertIn("SKU", text)
+        self.assertIn("Frame Width: spec 140, model 140.0 (ok)", text)
+        self.assertIn("Lens Width: 50.0", text)
 
 
 if __name__ == "__main__":

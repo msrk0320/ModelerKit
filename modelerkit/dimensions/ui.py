@@ -1,5 +1,8 @@
 """Dimensions section: the task's measurements, what the model measures, and Fit to Spec."""
 
+import json
+import os
+
 import bpy
 
 from .. import explode_slider
@@ -66,8 +69,106 @@ class MODELERKIT_OT_dimensions_fit(bpy.types.Operator):
         return {"FINISHED"}
 
 
+def specs_file():
+    """Saved specs live in this computer's Blender config, never in the file or the add-on."""
+    return os.path.join(bpy.utils.user_resource("CONFIG", path="modelerkit"), "specs.json")
+
+
+def _saved():
+    try:
+        with open(specs_file(), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def _root(op, context):
+    roots = measure.find_roots(context.scene)
+    if len(roots) != 1:
+        op.report({"ERROR"}, "Needs one top parent named after the SKU")
+        return None
+    return roots[0]
+
+
+class MODELERKIT_OT_dimensions_save_spec(bpy.types.Operator):
+    bl_idname = "modelerkit.dimensions_save_spec"
+    bl_label = "Save Spec"
+    bl_description = "Remember these measurements on this computer under the top parent's name (the SKU)"
+
+    def execute(self, context):
+        root = _root(self, context)
+        if root is None:
+            return {"CANCELLED"}
+        props = context.scene.mk_dimensions
+        saved = _saved()
+        saved[root.name] = {**logic.specs_of(props), "exact_frame": props.exact_frame}
+        os.makedirs(os.path.dirname(specs_file()), exist_ok=True)
+        with open(specs_file(), "w", encoding="utf-8") as f:
+            json.dump(saved, f, indent=1, sort_keys=True)
+        self.report({"INFO"}, "Saved the spec for %s" % root.name)
+        return {"FINISHED"}
+
+
+_items = []  # Blender needs the enum strings kept alive while the menu is open
+
+
+def _spec_items(_self, _context):
+    _items[:] = [(sku, sku, "") for sku in sorted(_saved())] or [("", "No saved specs", "")]
+    return _items
+
+
+class MODELERKIT_OT_dimensions_load_spec(bpy.types.Operator):
+    bl_idname = "modelerkit.dimensions_load_spec"
+    bl_label = "Load Spec"
+    bl_description = "Fill the measurements with a spec saved on this computer"
+    bl_property = "sku"
+    bl_options = {"REGISTER", "UNDO"}
+
+    sku: bpy.props.EnumProperty(name="SKU", items=_spec_items)
+
+    def execute(self, context):
+        spec = _saved().get(self.sku)
+        if not spec:
+            return {"CANCELLED"}
+        props = context.scene.mk_dimensions
+        for key, value in spec.items():
+            setattr(props, key, value)
+        return {"FINISHED"}
+
+
+def report_text(context):
+    props = context.scene.mk_dimensions
+    res = measure.result(context.scene)
+    specs = logic.specs_of(props)
+    found = logic.statuses(res.values, specs, exact_frame=props.exact_frame)
+    lines = [res.root.name if res.root else res.error]
+    for key in logic.KEYS:
+        value = res.values.get(key)
+        spec = logic.spec_text(key, specs[key], props.exact_frame) if specs[key] else "no spec"
+        lines.append("%s: %s, model %s (%s)" % (logic.LABELS[key], spec, "%.1f" % value if value is not None else "-",
+                                                found[key]))
+    if res.lens_width is not None:
+        lines.append("Lens Width: %.1f" % res.lens_width)
+    return "\n".join(lines + list(res.notes))
+
+
+class MODELERKIT_OT_dimensions_copy_report(bpy.types.Operator):
+    bl_idname = "modelerkit.dimensions_copy_report"
+    bl_label = "Copy Report"
+    bl_description = "Copy the specs, what the model measures and any warnings, as text to paste in the task"
+
+    def execute(self, context):
+        measure.mark_dirty()
+        context.window_manager.clipboard = report_text(context)
+        self.report({"INFO"}, "Report copied")
+        return {"FINISHED"}
+
+
 def draw(layout, context):
     props = context.scene.mk_dimensions
+    row = layout.row(align=True)
+    row.operator_menu_enum(MODELERKIT_OT_dimensions_load_spec.bl_idname, "sku", text="Load Spec", icon="IMPORT")
+    row.operator(MODELERKIT_OT_dimensions_save_spec.bl_idname, text="Save Spec", icon="FILE_TICK")
     layout.prop(props, "paste", text="", icon="PASTEDOWN", placeholder="Paste task Dimensions line")
     if props.paste:
         layout.label(text="No measurements found in that text", icon="ERROR")
@@ -114,9 +215,11 @@ def draw(layout, context):
         box.label(text="can't both fit. Fix the model's proportions.")
     for note in res.notes:
         layout.label(text=note, icon="ERROR")
+    layout.operator(MODELERKIT_OT_dimensions_copy_report.bl_idname, icon="COPYDOWN")
 
 
-CLASSES = (MODELERKIT_Dimensions, MODELERKIT_OT_dimensions_fit)
+CLASSES = (MODELERKIT_Dimensions, MODELERKIT_OT_dimensions_fit, MODELERKIT_OT_dimensions_save_spec,
+           MODELERKIT_OT_dimensions_load_spec, MODELERKIT_OT_dimensions_copy_report)
 
 
 def register():

@@ -268,8 +268,36 @@ class MODELERKIT_OT_install_painter_export(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class MODELERKIT_OT_export_for_painter(bpy.types.Operator):
+    bl_idname = "modelerkit.export_for_painter"
+    bl_label = "Export for Painter"
+    bl_description = ("Write <blend name>.fbx beside the .blend (selected objects, or every mesh when nothing is "
+                      "selected). Save the Painter project there under the same name, and Import Textures finds "
+                      "its export by itself")
+
+    @classmethod
+    def poll(cls, context):
+        if not bpy.data.filepath:
+            cls.poll_message_set("Save the .blend first")
+            return False
+        return context.mode == "OBJECT"
+
+    def execute(self, context):
+        path = os.path.splitext(bpy.data.filepath)[0] + ".fbx"
+        try:
+            bpy.ops.export_scene.fbx(filepath=path, use_selection=bool(context.selected_objects),
+                                     object_types={"MESH"}, use_mesh_modifiers=True, mesh_smooth_type="FACE")
+        except RuntimeError as e:
+            self.report({"ERROR"}, "Could not write %s: %s" % (path, str(e).strip()))
+            return {"CANCELLED"}
+        self.report({"INFO"}, "Wrote %s" % path)
+        return {"FINISHED"}
+
+
 def draw(layout, context):
     col = layout.column(align=True)
+    col.operator(MODELERKIT_OT_export_for_painter.bl_idname, icon="EXPORT")
+    col.separator()
     col.prop(context.scene, "mk_sp_texture_folder", text="")
     col.separator()
     col.prop(context.scene, "mk_sp_import_normal")
@@ -279,7 +307,8 @@ def draw(layout, context):
     col.operator(MODELERKIT_OT_install_painter_export.bl_idname, icon="EXPORT")
 
 
-CLASSES = (MODELERKIT_OT_import, MODELERKIT_OT_reload, MODELERKIT_OT_install_painter_export)
+CLASSES = (MODELERKIT_OT_import, MODELERKIT_OT_reload, MODELERKIT_OT_install_painter_export,
+           MODELERKIT_OT_export_for_painter)
 
 
 def register():

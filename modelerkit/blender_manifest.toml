@@ -1,8 +1,8 @@
 schema_version = "1.0.0"
 id = "modelerkit"
-version = "1.7.4"
+version = "1.8.0"
 name = "Modeler Kit"
-tagline = "Explode, dimensions, lens gap, UV and material names, textures"
+tagline = "Check model, parts, explode, dimensions, lens gap, textures"
 maintainer = "MadSrei"
 type = "add-on"
 blender_version_min = "4.5.0"
@@ -10,7 +10,7 @@ license = ["SPDX:GPL-3.0-or-later"]
 tags = ["Object", "Material", "UV"]
 
 [permissions]
-files = "Import textures and install the Painter export script"
+files = "Import textures, export FBX, save specs, install Painter script"
 
 [build]
 paths_exclude_pattern = ["__pycache__/", "*.pyc"]

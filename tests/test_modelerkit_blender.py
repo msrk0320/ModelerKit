@@ -10,7 +10,8 @@ import bpy
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import modelerkit  # noqa: E402
-from modelerkit import panel, sp_texture_link  # noqa: E402
+from modelerkit import check_model, panel, sp_texture_link, turntable  # noqa: E402
+from modelerkit.dimensions import ui as dimensions_ui  # noqa: E402
 
 MAP_NAMES = ("BaseColor", "Roughness", "Metallic", "Normal", "Transmissive")
 
@@ -23,6 +24,12 @@ class Recorder:
     def operator(self, idname, **kwargs):
         self.ops.append(idname)
         return self
+
+    def operator_menu_enum(self, idname, prop, **kwargs):
+        return self.operator(idname)
+
+    def panel(self, idname, **kwargs):
+        return self, self
 
     def prop(self, data, name, **kwargs):
         getattr(data, name)  # raises if the property isn't registered
@@ -74,6 +81,8 @@ class Base(unittest.TestCase):
     def setUp(self):
         bpy.ops.wm.read_factory_settings(use_empty=True)
         self.tmp = tempfile.mkdtemp()
+        # Saved specs go to a temp file, never the real Blender config
+        dimensions_ui.specs_file = lambda: os.path.join(self.tmp, "specs.json")
 
     def tearDown(self):
         if bpy.context.mode != "OBJECT":
@@ -82,14 +91,20 @@ class Base(unittest.TestCase):
 
 class PanelTests(Base):
     def test_every_button_on_the_panel_exists(self):
+        bpy.ops.modelerkit.check_model()  # an empty scene has a problem, so a Fix button shows
         layout = Recorder()
         panel.VIEW3D_PT_modelerkit.draw(type("P", (), {"layout": layout})(), bpy.context)
         self.assertEqual(set(layout.ops), {
             "modelerkit.explode_reset", "modelerkit.toggle_lock_location", "modelerkit.single_uv_map",
             "modelerkit.dimensions_fit", "modelerkit.check_lens_gap", "modelerkit.close_lens_gap",
             "modelerkit.name_materials_from_root",
-            "modelerkit.reload_textures", "modelerkit.import_textures", "modelerkit.install_painter_export"})
+            "modelerkit.reload_textures", "modelerkit.import_textures", "modelerkit.install_painter_export",
+            "modelerkit.check_model", "modelerkit.check_model_fix", "modelerkit.set_up_hierarchy",
+            "modelerkit.rename_part", "modelerkit.copy_left_to_right", "modelerkit.export_for_painter",
+            "modelerkit.dimensions_save_spec", "modelerkit.dimensions_load_spec", "modelerkit.dimensions_copy_report",
+            "modelerkit.turntable"})
         self.assertEqual(set(layout.props), {"mk_explode_factor", "mk_explode_axis", "mk_explode_selected_only",
+                                             "mk_temple_fold",
                                              "mk_lens_gap_search", "mk_lens_gap_offset", "mk_sp_texture_folder",
                                              "exact_frame", "paste", "frame_width", "bridge", "lens_height",
                                              "temple_length", "show",
@@ -132,6 +147,59 @@ class UndoTests(Base):
         self.press_then_undo(bpy.ops.modelerkit.import_textures)
         mat = bpy.data.objects["o"].data.materials[0]
         self.assertFalse(mat.node_tree and any(n.name.startswith("SPLink_") for n in mat.node_tree.nodes))
+
+    def test_set_up_hierarchy(self):
+        select(mesh("front_rim"))
+        self.press_then_undo(bpy.ops.modelerkit.set_up_hierarchy)
+        self.assertEqual([o.name for o in bpy.data.objects], ["front_rim"])
+
+    def test_rename_part(self):
+        select(mesh("o"))
+        self.press_then_undo(lambda *args: bpy.ops.modelerkit.rename_part(*args, part="front_rim"))
+        self.assertIn("o", bpy.data.objects)
+
+    def test_copy_left_to_right(self):
+        select(mesh("lens_left"))
+        self.press_then_undo(bpy.ops.modelerkit.copy_left_to_right)
+        self.assertNotIn("lens_right", bpy.data.objects)
+
+    def test_check_model_fix(self):
+        o = mesh("front_rim")
+        o.scale = (2, 2, 2)
+        with ui():
+            bpy.ops.modelerkit.check_model()
+        index = next(n for n, i in enumerate(check_model._issues) if i.fix == "apply_scale")
+        self.press_then_undo(lambda *args: bpy.ops.modelerkit.check_model_fix(*args, index=index))
+        self.assertEqual(tuple(bpy.data.objects["front_rim"].scale), (2, 2, 2))
+
+    def test_load_spec(self):
+        sku = mesh("SKU")
+        for group in ("frame", "lenses", "temples"):
+            mesh(group, parent=sku)
+        bpy.context.scene.mk_dimensions.frame_width = 140
+        bpy.ops.modelerkit.dimensions_save_spec()
+        bpy.context.scene.mk_dimensions.frame_width = 0
+        self.press_then_undo(lambda *args: bpy.ops.modelerkit.dimensions_load_spec(*args, sku="SKU"))
+        self.assertEqual(bpy.context.scene.mk_dimensions.frame_width, 0)
+
+
+class ExportForPainterTests(Base):
+    def test_writes_an_fbx_beside_the_blend(self):
+        mesh("o")
+        self.assertFalse(bpy.ops.modelerkit.export_for_painter.poll())
+        bpy.ops.wm.save_as_mainfile(filepath=os.path.join(self.tmp, "JOB.blend"))
+        self.assertEqual(bpy.ops.modelerkit.export_for_painter(), {"FINISHED"})
+        self.assertTrue(os.path.getsize(os.path.join(self.tmp, "JOB.fbx")) > 0)
+
+
+class TurntableTests(Base):
+    def test_toggles_the_spin_and_changes_nothing_in_the_scene(self):
+        self.assertFalse(turntable.running())
+        bpy.ops.modelerkit.turntable()
+        self.assertTrue(turntable.running())
+        turntable._spin()  # no 3D view in the background: must not fail
+        bpy.ops.modelerkit.turntable()
+        self.assertFalse(turntable.running())
 
 
 class TextureTests(Base):

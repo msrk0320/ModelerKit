@@ -6,8 +6,8 @@
       "schema_version": "1.0.0",
       "id": "modelerkit",
       "name": "Modeler Kit",
-      "tagline": "Explode, dimensions, lens gap, UV and material names, textures",
-      "version": "1.7.4",
+      "tagline": "Check model, parts, explode, dimensions, lens gap, textures",
+      "version": "1.8.0",
       "type": "add-on",
       "maintainer": "MadSrei",
       "license": [
@@ -15,16 +15,16 @@
       ],
       "blender_version_min": "4.5.0",
       "permissions": {
-        "files": "Import textures and install the Painter export script"
+        "files": "Import textures, export FBX, save specs, install Painter script"
       },
       "tags": [
         "Object",
         "Material",
         "UV"
       ],
-      "archive_url": "./modelerkit-1.7.4.zip",
-      "archive_size": 30672,
-      "archive_hash": "sha256:57dff258c46b2f45a1d0cbe3eb3b7e203d1771c5395761b45d6dfd0df3f7c13f"
+      "archive_url": "./modelerkit-1.8.0.zip",
+      "archive_size": 42050,
+      "archive_hash": "sha256:730c0c8613de7eb738254d70249b2d05d174cc39a7aeba527f44958f5ade02eb"
     }
   ]
 }
