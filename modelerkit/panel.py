@@ -2,10 +2,10 @@
 
 import bpy
 
-from . import check_model, dimensions, explode_slider, lens_gap, lock_location, parts, sp_texture_link, turntable, \
+from . import check_model, dimensions, explode_slider, lens_gap, lock_location, sp_texture_link, turntable, \
     uv_material
 
-SECTIONS = (("Check Model", check_model), ("Parts", parts), ("Explode", explode_slider), ("Lock", lock_location),
+SECTIONS = (("Check Model", check_model), ("Explode", explode_slider), ("Lock", lock_location),
             ("Dimensions", dimensions), ("Close Lens Gap", lens_gap), ("UV & Material Names", uv_material),
             ("SP Textures", sp_texture_link), ("Turntable", turntable))
 

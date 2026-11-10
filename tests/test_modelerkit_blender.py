@@ -97,11 +97,10 @@ class PanelTests(Base):
             "modelerkit.name_materials_from_root",
             "modelerkit.reload_textures", "modelerkit.import_textures", "modelerkit.install_painter_export",
             "modelerkit.check_model", "modelerkit.check_model_fix",
-            "modelerkit.rename_part", "modelerkit.copy_left_to_right", "modelerkit.export_for_painter",
+            "modelerkit.export_for_painter",
             "modelerkit.dimensions_copy_report",
             "modelerkit.turntable"})
         self.assertEqual(set(layout.props), {"mk_explode_factor", "mk_explode_axis", "mk_explode_selected_only",
-                                             "mk_temple_fold",
                                              "mk_lens_gap_search", "mk_lens_gap_offset", "mk_sp_texture_folder",
                                              "exact_frame", "frame_width", "bridge", "lens_height",
                                              "temple_length", "show",
@@ -144,16 +143,6 @@ class UndoTests(Base):
         self.press_then_undo(bpy.ops.modelerkit.import_textures)
         mat = bpy.data.objects["o"].data.materials[0]
         self.assertFalse(mat.node_tree and any(n.name.startswith("SPLink_") for n in mat.node_tree.nodes))
-
-    def test_rename_part(self):
-        select(mesh("o"))
-        self.press_then_undo(lambda *args: bpy.ops.modelerkit.rename_part(*args, part="front_rim"))
-        self.assertIn("o", bpy.data.objects)
-
-    def test_copy_left_to_right(self):
-        select(mesh("lens_left"))
-        self.press_then_undo(bpy.ops.modelerkit.copy_left_to_right)
-        self.assertNotIn("lens_right", bpy.data.objects)
 
     def test_check_model_fix(self):
         o = mesh("front_rim")

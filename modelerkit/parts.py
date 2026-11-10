@@ -1,4 +1,4 @@
-"""Parts: the product's hierarchy and part names, Copy Left to Right, and the Fold Temples slider."""
+"""The product's hierarchy and part names, and the Check Model fixes that build the tree and copy left to right."""
 
 import os
 import re
@@ -7,7 +7,6 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
-from . import explode_slider
 from .dimensions import measure
 
 # The modeling SOP's tree. Wearer's left is +X; the front faces -Y.
@@ -27,8 +26,6 @@ NAMES = TOP + tuple(GROUP_OF)
 REQUIRED = TOP + ("front_rim", "lens_left", "lens_right", "temple_left", "temple_right", "temple_left_outer",
                   "temple_right_outer")
 MIRROR_X = Matrix.Scale(-1, 4, (1, 0, 0))
-FOLD_BASIS = "_mk_fold_basis"  # the temple's local matrix before folding
-FOLD_PIVOT = "_mk_fold_pivot"  # the hinge, in the temple's parent space, so Fit to Spec scaling the root keeps it valid
 
 _SIDE = re.compile(r"(?<![a-z])(left|right)(?![a-z])")
 
@@ -146,119 +143,3 @@ def copy_left_to_right(context, sources):
         done.append(dst.name)
     context.view_layer.update()
     return done
-
-
-def _left_sources(context):
-    o = context.active_object
-    if o is None:
-        return []
-    return [m for m in meshes_of(o) if side(measure.base_name(m)) == "left"]
-
-
-class MODELERKIT_OT_rename_part(bpy.types.Operator):
-    """Give the active object one of the part names"""
-    bl_idname = "modelerkit.rename_part"
-    bl_label = "Rename Part"
-    bl_property = "part"
-    bl_options = {"REGISTER", "UNDO"}
-
-    part: bpy.props.EnumProperty(name="Part", items=[(n, n, "") for n in NAMES])
-
-    @classmethod
-    def poll(cls, context):
-        return context.active_object is not None
-
-    def execute(self, context):
-        o = context.active_object
-        o.name = self.part
-        if o.name != self.part:
-            self.report({"WARNING"}, "Another object is already called %s, so this one is %s" % (self.part, o.name))
-        return {"FINISHED"}
-
-
-class MODELERKIT_OT_copy_left_to_right(bpy.types.Operator):
-    """Mirror the active left part (and the left parts under it) across X onto the right side, replacing the right
-    part's mesh. The UVs are copied too, so the two sides share UV space"""
-    bl_idname = "modelerkit.copy_left_to_right"
-    bl_label = "Copy Left to Right"
-    bl_options = {"REGISTER", "UNDO"}
-
-    @classmethod
-    def poll(cls, context):
-        if context.mode != "OBJECT":
-            cls.poll_message_set("Return to Object Mode first")
-            return False
-        if not _left_sources(context):
-            cls.poll_message_set("Click a _left part")
-            return False
-        return True
-
-    def execute(self, context):
-        sources = _left_sources(context)
-        keyed = [o.name for o in sources if o.data.shape_keys]
-        if keyed:
-            self.report({"ERROR"}, "Remove the shape keys first (Explode > Reset if they are Explode's): %s"
-                        % ", ".join(keyed))
-            return {"CANCELLED"}
-        done = copy_left_to_right(context, sources)
-        self.report({"INFO"}, "Mirrored onto %s" % ", ".join(done))
-        return {"FINISHED"}
-
-
-def folded(scene):
-    return any(FOLD_BASIS in o for o in scene.objects)
-
-
-def _temples(context):
-    root = product_root(context)
-    return [t for t in (find(root, "temple_left"), find(root, "temple_right")) if t] if root else []
-
-
-def update_fold(scene, context):
-    angle = scene.mk_temple_fold
-    for t in _temples(context):
-        if FOLD_BASIS not in t:
-            if not angle:
-                continue
-            bounds = world_bounds(meshes_of(t))
-            if bounds is None:
-                continue
-            lo, hi = bounds
-            # shortcut: the hinge is taken as the temple's front outer corner; use the real hinge if folds look off
-            hinge = Vector((hi.x if side(measure.base_name(t)) == "left" else lo.x, lo.y, (lo.z + hi.z) / 2))
-            parent_space = (t.parent.matrix_world @ t.matrix_parent_inverse).inverted() if t.parent else Matrix()
-            t[FOLD_BASIS] = [v for row in t.matrix_basis for v in row]
-            t[FOLD_PIVOT] = tuple(parent_space @ hinge)
-        basis = Matrix([t[FOLD_BASIS][i:i + 4] for i in range(0, 16, 4)])
-        pivot = Vector(t[FOLD_PIVOT])
-        turn = angle if side(measure.base_name(t)) == "left" else -angle  # both tips swing in behind the lenses
-        t.matrix_basis = Matrix.Translation(pivot) @ Matrix.Rotation(turn, 4, "Z") @ Matrix.Translation(-pivot) @ basis
-        if not angle:
-            del t[FOLD_BASIS], t[FOLD_PIVOT]
-    context.view_layer.update()
-
-
-def draw(layout, context):
-    col = layout.column(align=True)
-    col.operator_menu_enum(MODELERKIT_OT_rename_part.bl_idname, "part", text="Rename Active", icon="SORTALPHA")
-    col.operator(MODELERKIT_OT_copy_left_to_right.bl_idname, icon="MOD_MIRROR")
-    row = layout.row()
-    row.enabled = context.mode == "OBJECT" and not explode_slider.has_data()  # both move parts from stored rests
-    row.prop(context.scene, "mk_temple_fold", slider=True)
-
-
-CLASSES = (MODELERKIT_OT_rename_part, MODELERKIT_OT_copy_left_to_right)
-
-
-def register():
-    bpy.types.Scene.mk_temple_fold = bpy.props.FloatProperty(
-        name="Fold Temples", subtype="ANGLE", min=0.0, max=1.745, default=0.0, update=update_fold,
-        description="Swing both temples in about their hinges, to check the fold. Back to 0 restores them exactly")
-    for c in CLASSES:
-        bpy.utils.register_class(c)
-
-
-def unregister():
-    for c in reversed(CLASSES):
-        bpy.utils.unregister_class(c)
-    del bpy.types.Scene.mk_temple_fold

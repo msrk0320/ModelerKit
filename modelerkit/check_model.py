@@ -275,7 +275,7 @@ FIXES = {
     "drop_number": ("Remove the .001 ending", lambda context, objs: [setattr(o, "name", measure.base_name(o))
                                                                      for o in objs]),
     "swap_side": ("Swap left and right in these names", _swap_sides),
-    "copy_left": ("Replace the right part with a mirror of the left (Copy Left to Right)",
+    "copy_left": ("Replace the right part with a mirror of the left",
                   lambda context, objs: parts.copy_left_to_right(context, objs)),
     "apply_scale": ("Apply the scale", lambda context, objs: _run_on(
         lambda: bpy.ops.object.transform_apply(location=False, rotation=False, scale=True), objs)),

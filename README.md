@@ -39,7 +39,7 @@ Required: `frame`, `lenses`, `temples`, `front_rim`, `lens_left`, `lens_right`, 
 **Check Model**
 - **Check Model:** lists what QA would flag, and changes nothing. A **Fix** button sits beside each problem it can fix; hover it to see what it does and the full list of parts.
   - Top parent and groups missing, or a part in the wrong group. Fix: builds the top parent with `frame`, `lenses`, `temples`, `temple_left` and `temple_right`, and moves every named part under the right group. Parts stay where they are. It reuses a top parent that is already there; otherwise it names the new one after the `.blend` file, so rename it to the SKU.
-  - A required part missing, or a name that isn't in the tree. Fix by hand, with Rename Active.
+  - A required part missing, or a name that isn't in the tree. Fix by hand.
   - A `.001` ending. Fix: removes it, when the plain name is free.
   - A `_left` part sitting on the wearer's right, or the other way round. Fix: swaps left and right in those names.
   - Scale not applied. Fix: applies it.
@@ -48,13 +48,8 @@ Required: `frame`, `lenses`, `temples`, `front_rim`, `lens_left`, `lens_right`, 
   - Loose verts or edges, n-gons, flipped normals. Fixes: deletes them, triangulates the n-gons, recalculates normals outside.
   - UVs outside 0-1, and UVs overlapping among parts that share a material, including stacked left and right islands. No fix: move the islands yourself.
   - Texel density: the lowest and highest, in px/cm at 2048.
-  - A right part that isn't a mirror of its left, as a note, because a logo on one side is fine. Fix: Copy Left to Right.
+  - A right part that isn't a mirror of its left, as a note, because a logo on one side is fine. Fix: replaces the right part with a mirror of the left, UVs included, so the two sides share UV space.
 - Press Check Model again after changing the model by hand.
-
-**Parts**
-- **Rename Active:** pick a part name from the list for the active object.
-- **Copy Left to Right:** mirrors the active `_left` part, or every `_left` part under it (click `temple_left` for the whole temple), across X onto the `_right` part, replacing its mesh. A missing right part is made. UVs come along too, so the two sides share UV space; Check Model flags the overlap. It refuses meshes with shape keys.
-- **Fold Temples:** swings both temples in about their hinges, to check the fold. The hinge is taken as the temple's front outer corner. Back to 0 puts them back exactly, even after Fit to Spec. It is grey while there is Explode data.
 
 **Explode**
 - **Explode slider:** spreads the parts apart along the chosen axis, including loose pieces inside a mesh. Move it back to 0 to put everything together. Parts at the same place on that axis that sit apart on the other two, like a left and right pair, move together and stay level. Linked copies that are turned or mirrored differently, like left and right temples sharing one mesh, move as whole parts; their loose pieces aren't split.
