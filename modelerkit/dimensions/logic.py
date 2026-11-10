@@ -1,6 +1,5 @@
-"""Rules for the Dimensions panel: parsing the task page's line, range status, and the uniform scale that fits. No bpy."""
+"""Rules for the Dimensions panel: range status, and the uniform scale that fits. No bpy."""
 
-import re
 from collections import namedtuple
 
 KEYS = ("frame_width", "bridge", "lens_height", "temple_length")
@@ -11,18 +10,9 @@ NEAR = 0.1  # the last 10% of the tolerance reads as close to the limit
 
 Fit = namedtuple("Fit", "state factor after conflict")  # state: none, ok, fit, conflict
 
-_FIELD = re.compile(r"(frame\s*width|bridge(?:\s*width)?|lens\s*height|temple\s*length)\s*[:=]?\s*(\d+(?:\.\d+)?)",
-                    re.IGNORECASE)
-
-
 def specs_of(props):
     """{key: mm} from anything holding the four measurements as attributes (the scene's settings)."""
     return {k: getattr(props, k) for k in KEYS}
-
-
-def parse(text):
-    """{key: mm} for every measurement named in text, such as the task page's Dimensions line."""
-    return {next(k for k in KEYS if k[0] == name[0].lower()): float(number) for name, number in _FIELD.findall(text or "")}
 
 
 def tolerance_of(key, exact_frame=True):

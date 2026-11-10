@@ -1,8 +1,5 @@
 """Dimensions section: the task's measurements, what the model measures, and Fit to Spec."""
 
-import json
-import os
-
 import bpy
 
 from .. import explode_slider
@@ -10,14 +7,6 @@ from . import logic, measure, overlay
 
 STATUS_ICON = {"ok": "STRIP_COLOR_04", "near": "STRIP_COLOR_03", "out": "STRIP_COLOR_01", "unset": "STRIP_COLOR_09",
                "missing": "STRIP_COLOR_09"}
-
-
-def _on_paste(self, _context):
-    found = logic.parse(self.paste)
-    if found:
-        for key, value in found.items():
-            setattr(self, key, value)
-        self["paste"] = ""  # direct, so this callback doesn't run again
 
 
 def _on_change(_self, _context):
@@ -32,8 +21,6 @@ class MODELERKIT_Dimensions(bpy.types.PropertyGroup):
     bridge: bpy.props.FloatProperty(name="Bridge", min=0.0, max=1000.0, precision=1, update=_on_change)
     lens_height: bpy.props.FloatProperty(name="Lens Height", min=0.0, max=1000.0, precision=1, update=_on_change)
     temple_length: bpy.props.FloatProperty(name="Temple Length", min=0.0, max=1000.0, precision=1, update=_on_change)
-    paste: bpy.props.StringProperty(name="Paste", description="Paste the Dimensions line from the task page",
-                                    update=_on_paste)
     show: bpy.props.BoolProperty(name="Show Measurements", description="Draw the measurements on the model in the 3D view",
                                  update=_on_change)
 
@@ -69,73 +56,6 @@ class MODELERKIT_OT_dimensions_fit(bpy.types.Operator):
         return {"FINISHED"}
 
 
-def specs_file():
-    """Saved specs live in this computer's Blender config, never in the file or the add-on."""
-    return os.path.join(bpy.utils.user_resource("CONFIG", path="modelerkit"), "specs.json")
-
-
-def _saved():
-    try:
-        with open(specs_file(), encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, ValueError):
-        return {}
-
-
-def _root(op, context):
-    roots = measure.find_roots(context.scene)
-    if len(roots) != 1:
-        op.report({"ERROR"}, "Needs one top parent named after the SKU")
-        return None
-    return roots[0]
-
-
-class MODELERKIT_OT_dimensions_save_spec(bpy.types.Operator):
-    bl_idname = "modelerkit.dimensions_save_spec"
-    bl_label = "Save Spec"
-    bl_description = "Remember these measurements on this computer under the top parent's name (the SKU)"
-
-    def execute(self, context):
-        root = _root(self, context)
-        if root is None:
-            return {"CANCELLED"}
-        props = context.scene.mk_dimensions
-        saved = _saved()
-        saved[root.name] = {**logic.specs_of(props), "exact_frame": props.exact_frame}
-        os.makedirs(os.path.dirname(specs_file()), exist_ok=True)
-        with open(specs_file(), "w", encoding="utf-8") as f:
-            json.dump(saved, f, indent=1, sort_keys=True)
-        self.report({"INFO"}, "Saved the spec for %s" % root.name)
-        return {"FINISHED"}
-
-
-_items = []  # Blender needs the enum strings kept alive while the menu is open
-
-
-def _spec_items(_self, _context):
-    _items[:] = [(sku, sku, "") for sku in sorted(_saved())] or [("", "No saved specs", "")]
-    return _items
-
-
-class MODELERKIT_OT_dimensions_load_spec(bpy.types.Operator):
-    bl_idname = "modelerkit.dimensions_load_spec"
-    bl_label = "Load Spec"
-    bl_description = "Fill the measurements with a spec saved on this computer"
-    bl_property = "sku"
-    bl_options = {"REGISTER", "UNDO"}
-
-    sku: bpy.props.EnumProperty(name="SKU", items=_spec_items)
-
-    def execute(self, context):
-        spec = _saved().get(self.sku)
-        if not spec:
-            return {"CANCELLED"}
-        props = context.scene.mk_dimensions
-        for key, value in spec.items():
-            setattr(props, key, value)
-        return {"FINISHED"}
-
-
 def report_text(context):
     props = context.scene.mk_dimensions
     res = measure.result(context.scene)
@@ -166,12 +86,6 @@ class MODELERKIT_OT_dimensions_copy_report(bpy.types.Operator):
 
 def draw(layout, context):
     props = context.scene.mk_dimensions
-    row = layout.row(align=True)
-    row.operator_menu_enum(MODELERKIT_OT_dimensions_load_spec.bl_idname, "sku", text="Load Spec", icon="IMPORT")
-    row.operator(MODELERKIT_OT_dimensions_save_spec.bl_idname, text="Save Spec", icon="FILE_TICK")
-    layout.prop(props, "paste", text="", icon="PASTEDOWN", placeholder="Paste task Dimensions line")
-    if props.paste:
-        layout.label(text="No measurements found in that text", icon="ERROR")
     layout.prop(props, "exact_frame")
     specs = logic.specs_of(props)
     if not any(specs.values()):
@@ -218,8 +132,7 @@ def draw(layout, context):
     layout.operator(MODELERKIT_OT_dimensions_copy_report.bl_idname, icon="COPYDOWN")
 
 
-CLASSES = (MODELERKIT_Dimensions, MODELERKIT_OT_dimensions_fit, MODELERKIT_OT_dimensions_save_spec,
-           MODELERKIT_OT_dimensions_load_spec, MODELERKIT_OT_dimensions_copy_report)
+CLASSES = (MODELERKIT_Dimensions, MODELERKIT_OT_dimensions_fit, MODELERKIT_OT_dimensions_copy_report)
 
 
 def register():

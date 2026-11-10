@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 id = "modelerkit"
-version = "1.8.1"
+version = "1.9.0"
 name = "Modeler Kit"
 tagline = "Check model, parts, explode, dimensions, lens gap, textures"
 maintainer = "MadSrei"
@@ -10,7 +10,7 @@ license = ["SPDX:GPL-3.0-or-later"]
 tags = ["Object", "Material", "UV"]
 
 [permissions]
-files = "Import textures, export FBX, save specs, install Painter script"
+files = "Import textures, export FBX, install Painter script"
 
 [build]
 paths_exclude_pattern = ["__pycache__/", "*.pyc"]

@@ -38,7 +38,7 @@ Required: `frame`, `lenses`, `temples`, `front_rim`, `lens_left`, `lens_right`, 
 
 **Check Model**
 - **Check Model:** lists what QA would flag, and changes nothing. A **Fix** button sits beside each problem it can fix; hover it to see what it does and the full list of parts.
-  - Top parent and groups missing, or a part in the wrong group. Fix: Set Up Hierarchy.
+  - Top parent and groups missing, or a part in the wrong group. Fix: builds the top parent with `frame`, `lenses`, `temples`, `temple_left` and `temple_right`, and moves every named part under the right group. Parts stay where they are. It reuses a top parent that is already there; otherwise it names the new one after the `.blend` file, so rename it to the SKU.
   - A required part missing, or a name that isn't in the tree. Fix by hand, with Rename Active.
   - A `.001` ending. Fix: removes it, when the plain name is free.
   - A `_left` part sitting on the wearer's right, or the other way round. Fix: swaps left and right in those names.
@@ -52,7 +52,6 @@ Required: `frame`, `lenses`, `temples`, `front_rim`, `lens_left`, `lens_right`, 
 - Press Check Model again after changing the model by hand.
 
 **Parts**
-- **Set Up Hierarchy:** builds the top parent with `frame`, `lenses`, `temples`, `temple_left` and `temple_right`, and moves the selected parts under the right group by name. With nothing selected, it sorts every named part in the scene. Parts stay where they are. It reuses a top parent that is already there, or the active empty; otherwise it names the new one after the `.blend` file, so rename it to the SKU. Selected objects with other names are left alone, and listed.
 - **Rename Active:** pick a part name from the list for the active object.
 - **Copy Left to Right:** mirrors the active `_left` part, or every `_left` part under it (click `temple_left` for the whole temple), across X onto the `_right` part, replacing its mesh. A missing right part is made. UVs come along too, so the two sides share UV space; Check Model flags the overlap. It refuses meshes with shape keys.
 - **Fold Temples:** swings both temples in about their hinges, to check the fold. The hinge is taken as the temple's front outer corner. Back to 0 puts them back exactly, even after Fit to Spec. It is grey while there is Explode data.
@@ -72,9 +71,7 @@ Required: `frame`, `lenses`, `temples`, `front_rim`, `lens_left`, `lens_right`, 
 **Dimensions**
 
 Compares the task's measurements with the model, live. The file needs one top parent with `frame`, `lenses` and `temples` under it, and parts named `front_rim`, `lens_left`, `lens_right`, `temple_left` and `temple_right`. 1 Blender unit counts as 1 cm, whatever the scene's unit scale says. Parts are measured as shown, so a Mirror or other modifier counts.
-- **Load Spec / Save Spec:** Save Spec remembers the measurements and Exact Frame Fit on this computer, under the top parent's name (the SKU). Load Spec fills them back in. They are kept in Blender's config folder, not in the `.blend`.
 - **Exact Frame Fit:** on by default. Frame Width must equal its spec at 0.1 mm. Off, it may be ±3 mm.
-- **Paste box:** paste a line like `Lens Height 40mm Bridge Width 19mm Temple Length 140mm Frame Width 140mm` to fill the fields, in any order. If it stays in the box, no measurement was found.
 - **Frame Width, Bridge, Lens Height, Temple:** type the spec in mm, or leave 0 to skip it. Bridge may be off by ±2, Lens Height ±3 and Temple ±10 mm; Frame Width follows Exact Frame Fit. What the model measures shows beside it, with a dot: green is in range, amber is close to a limit or blocking a fit, red is out, grey is no spec or a missing part. Frame Width is the rim only, so temples that flare past it don't count. Bridge is the gap between the lenses.
 - **Lens Width:** a readout, with no spec.
 - **Show / Hide Measurements:** draws the lines and values on the model in the 3D view. It adds nothing to the scene or an export.

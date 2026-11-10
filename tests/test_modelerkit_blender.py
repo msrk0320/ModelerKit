@@ -11,7 +11,6 @@ import bpy
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import modelerkit  # noqa: E402
 from modelerkit import check_model, panel, sp_texture_link, turntable  # noqa: E402
-from modelerkit.dimensions import ui as dimensions_ui  # noqa: E402
 
 MAP_NAMES = ("BaseColor", "Roughness", "Metallic", "Normal", "Transmissive")
 
@@ -81,8 +80,6 @@ class Base(unittest.TestCase):
     def setUp(self):
         bpy.ops.wm.read_factory_settings(use_empty=True)
         self.tmp = tempfile.mkdtemp()
-        # Saved specs go to a temp file, never the real Blender config
-        dimensions_ui.specs_file = lambda: os.path.join(self.tmp, "specs.json")
 
     def tearDown(self):
         if bpy.context.mode != "OBJECT":
@@ -99,14 +96,14 @@ class PanelTests(Base):
             "modelerkit.dimensions_fit", "modelerkit.check_lens_gap", "modelerkit.close_lens_gap",
             "modelerkit.name_materials_from_root",
             "modelerkit.reload_textures", "modelerkit.import_textures", "modelerkit.install_painter_export",
-            "modelerkit.check_model", "modelerkit.check_model_fix", "modelerkit.set_up_hierarchy",
+            "modelerkit.check_model", "modelerkit.check_model_fix",
             "modelerkit.rename_part", "modelerkit.copy_left_to_right", "modelerkit.export_for_painter",
-            "modelerkit.dimensions_save_spec", "modelerkit.dimensions_load_spec", "modelerkit.dimensions_copy_report",
+            "modelerkit.dimensions_copy_report",
             "modelerkit.turntable"})
         self.assertEqual(set(layout.props), {"mk_explode_factor", "mk_explode_axis", "mk_explode_selected_only",
                                              "mk_temple_fold",
                                              "mk_lens_gap_search", "mk_lens_gap_offset", "mk_sp_texture_folder",
-                                             "exact_frame", "paste", "frame_width", "bridge", "lens_height",
+                                             "exact_frame", "frame_width", "bridge", "lens_height",
                                              "temple_length", "show",
                                              "mk_sp_import_normal"})
         for idname in layout.ops:
@@ -148,11 +145,6 @@ class UndoTests(Base):
         mat = bpy.data.objects["o"].data.materials[0]
         self.assertFalse(mat.node_tree and any(n.name.startswith("SPLink_") for n in mat.node_tree.nodes))
 
-    def test_set_up_hierarchy(self):
-        select(mesh("front_rim"))
-        self.press_then_undo(bpy.ops.modelerkit.set_up_hierarchy)
-        self.assertEqual([o.name for o in bpy.data.objects], ["front_rim"])
-
     def test_rename_part(self):
         select(mesh("o"))
         self.press_then_undo(lambda *args: bpy.ops.modelerkit.rename_part(*args, part="front_rim"))
@@ -171,16 +163,6 @@ class UndoTests(Base):
         index = next(n for n, i in enumerate(check_model._issues) if i.fix == "apply_scale")
         self.press_then_undo(lambda *args: bpy.ops.modelerkit.check_model_fix(*args, index=index))
         self.assertEqual(tuple(bpy.data.objects["front_rim"].scale), (2, 2, 2))
-
-    def test_load_spec(self):
-        sku = mesh("SKU")
-        for group in ("frame", "lenses", "temples"):
-            mesh(group, parent=sku)
-        bpy.context.scene.mk_dimensions.frame_width = 140
-        bpy.ops.modelerkit.dimensions_save_spec()
-        bpy.context.scene.mk_dimensions.frame_width = 0
-        self.press_then_undo(lambda *args: bpy.ops.modelerkit.dimensions_load_spec(*args, sku="SKU"))
-        self.assertEqual(bpy.context.scene.mk_dimensions.frame_width, 0)
 
 
 class ExportForPainterTests(Base):

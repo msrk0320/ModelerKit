@@ -1,4 +1,4 @@
-"""Set Up Hierarchy, Rename Part, Copy Left to Right and Fold Temples.
+"""The hierarchy fix, Rename Part, Copy Left to Right and Fold Temples.
 Run: blender --background --factory-startup --python-exit-code 1 --python tests\\test_parts_blender.py"""
 import sys
 import unittest
@@ -47,8 +47,7 @@ class HierarchyTests(Base):
         stray = box_mesh("cube", (0, 0, 0), (1, 1, 1), None)
         bpy.context.view_layer.update()
         before = world_verts(outer)
-        select(rim, outer, stray)
-        bpy.ops.modelerkit.set_up_hierarchy()
+        parts.set_up_hierarchy(bpy.context, [rim, outer, stray])
         root = parts.product_root(bpy.context)
         self.assertIsNotNone(root)
         self.assertEqual(rim.parent.name, "frame")
@@ -60,16 +59,14 @@ class HierarchyTests(Base):
     def test_reuses_the_existing_tree_and_a_temple_mesh_as_its_group(self):
         root = build()
         loose = box_mesh("lens_left.001", (0, 0, 0), (1, 1, 1), None)
-        select(loose)
-        bpy.ops.modelerkit.set_up_hierarchy()
+        parts.set_up_hierarchy(bpy.context, [loose])
         self.assertEqual(parts.product_root(bpy.context), root)
         self.assertEqual(sum(o.name.startswith("frame") for o in bpy.data.objects), 1)
         self.assertEqual(loose.parent.name, "lenses")
 
-    def test_nothing_selected_sorts_every_named_part(self):
+    def test_whole_scene_sorts_every_named_part(self):
         lens = box_mesh("lens_right", (0, 0, 0), (1, 1, 1), None)
-        select()
-        bpy.ops.modelerkit.set_up_hierarchy()
+        parts.set_up_hierarchy(bpy.context, list(bpy.context.scene.objects))
         self.assertEqual(lens.parent.name, "lenses")
 
 

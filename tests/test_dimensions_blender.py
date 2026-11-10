@@ -1,7 +1,5 @@
 """Run: blender --background --factory-startup --python-exit-code 1 --python tests\\test_dimensions_blender.py"""
-import os
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -12,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from modelerkit import dimensions, explode_slider  # noqa: E402
 from modelerkit.dimensions import logic, measure, overlay, ui  # noqa: E402
 
-SPEC_LINE = "Lens Height 40mm Bridge Width 19mm Temple Length 140mm Frame Width 140mm"
+SPEC = {"frame_width": 140.0, "bridge": 19.0, "lens_height": 40.0, "temple_length": 140.0}
 
 
 def box_mesh(name, low, high, parent):
@@ -69,6 +67,10 @@ class Base(unittest.TestCase):
 
     def assertMm(self, got, expected):
         self.assertAlmostEqual(got, expected, places=3)
+
+    def set_specs(self, **mm):
+        for key, value in mm.items():
+            setattr(self.props, key, value)
 
     def refresh(self):
         bpy.context.view_layer.update()
@@ -215,25 +217,6 @@ class LiveUpdateTests(Base):
         self.assertEqual((measure._result, measure._verts), ({}, {}))
 
 
-class PasteTests(Base):
-    def test_paste_fills_the_fields_and_clears_the_box(self):
-        self.props.paste = SPEC_LINE
-        self.assertEqual(logic.specs_of(self.props),
-                         {"frame_width": 140.0, "bridge": 19.0, "lens_height": 40.0, "temple_length": 140.0})
-        self.assertEqual(self.props.paste, "")
-
-    def test_junk_stays_in_the_box_and_changes_nothing(self):
-        self.props.bridge = 18.0
-        self.props.paste = "not a measurement"
-        self.assertEqual(self.props.paste, "not a measurement")
-        self.assertEqual(self.props.bridge, 18.0)
-
-    def test_partial_line_only_changes_what_it_names(self):
-        self.props.bridge = 18.0
-        self.props.paste = "Frame Width 142mm"
-        self.assertEqual((self.props.frame_width, self.props.bridge), (142.0, 18.0))
-
-
 class OverlayTests(Base):
     def items(self):
         got = overlay.geometry(measure.result(self.scene), logic.specs_of(self.props))
@@ -241,7 +224,7 @@ class OverlayTests(Base):
 
     def test_frame_line_spans_the_rim_above_it(self):
         build()
-        self.props.paste = SPEC_LINE
+        self.set_specs(**SPEC)
         line = self.items()["frame_width"].lines[0]
         self.assertAlmostEqual(line[0].x, -7.0, places=3)
         self.assertAlmostEqual(line[1].x, 7.0, places=3)
@@ -249,7 +232,7 @@ class OverlayTests(Base):
 
     def test_in_range_has_no_outline(self):
         build()
-        self.props.paste = SPEC_LINE
+        self.set_specs(**SPEC)
         self.assertEqual(self.items()["frame_width"].outlines, [])
         self.assertEqual(self.items()["frame_width"].value_text, "140.0")
         self.assertEqual(self.items()["frame_width"].spec_text, "spec 140")
@@ -257,14 +240,14 @@ class OverlayTests(Base):
 
     def test_out_of_range_outlines_its_part(self):
         build()
-        self.props.paste = "Frame Width 150mm"
+        self.set_specs(frame_width=150)
         item = self.items()["frame_width"]
         self.assertEqual(item.status, "out")
         self.assertEqual(len(item.outlines), 12)
 
     def test_conflict_outlines_both_members(self):
         build()
-        self.props.paste = "Temple Length 140mm Lens Height 30mm"
+        self.set_specs(temple_length=140, lens_height=30)
         items = self.items()
         self.assertEqual((items["temple_length"].status, items["lens_height"].status), ("near", "out"))
         self.assertEqual(len(items["temple_length"].outlines), 24)  # both temples
@@ -314,25 +297,25 @@ class ExactFrameTests(Base):
         build()
 
     def test_overlay_drops_the_tolerance_and_outlines_a_small_miss(self):
-        self.props.paste = "Frame Width 141mm"
+        self.set_specs(frame_width=141)
         got = overlay.geometry(measure.result(self.scene), logic.specs_of(self.props))
         item = next(i for i in got if i.key == "frame_width")
         self.assertEqual((item.status, item.spec_text, len(item.outlines)), ("out", "spec 141", 12))
 
     def test_fit_makes_the_value_exact(self):
-        self.props.paste = "Frame Width 141mm"
+        self.set_specs(frame_width=141)
         self.assertEqual(bpy.ops.modelerkit.dimensions_fit(), {"FINISHED"})
         self.assertMm(self.values()["frame_width"], 141.0)
 
     def test_fit_makes_the_frame_exact_and_leaves_lens_out(self):
-        self.props.paste = "Frame Width 141mm Lens Height 37mm"
+        self.set_specs(frame_width=141, lens_height=37)
         self.assertEqual(bpy.ops.modelerkit.dimensions_fit(), {"FINISHED"})
         self.assertMm(self.values()["frame_width"], 141.0)
         self.assertEqual(logic.statuses(self.values(), logic.specs_of(self.props))["lens_height"], "out")
 
     def test_off_gives_the_frame_its_range(self):
         self.props.exact_frame = False
-        self.props.paste = "Frame Width 141mm"
+        self.set_specs(frame_width=141)
         item = next(i for i in overlay.geometry(measure.result(self.scene), logic.specs_of(self.props), False)
                     if i.key == "frame_width")
         self.assertEqual((item.status, item.spec_text), ("ok", "spec 141 ±3"))
@@ -346,7 +329,7 @@ class FitTests(Base):
 
     def test_undo_puts_the_scale_back(self):
         build()
-        self.props.paste = "Frame Width 150mm"
+        self.set_specs(frame_width=150)
         with bpy.context.temp_override(window=bpy.context.window_manager.windows[0]):
             bpy.ops.ed.undo_push(message="Setup")
             bpy.ops.modelerkit.dimensions_fit("EXEC_DEFAULT", True)
@@ -358,7 +341,7 @@ class FitTests(Base):
         root = build()
         root.location = (0.0, 1.0, 0.0)
         self.refresh()
-        self.props.paste = "Frame Width 150mm"
+        self.set_specs(frame_width=150)
         rim = bpy.data.objects["front_rim"]
         before = [v.co.copy() for v in rim.data.vertices]
         uvs = [d.uv.copy() for d in rim.data.uv_layers[0].data]
@@ -373,7 +356,7 @@ class FitTests(Base):
 
     def test_every_measurement_scales_alike(self):
         build()
-        self.props.paste = "Frame Width 150mm"
+        self.set_specs(frame_width=150)
         self.fit()
         got = self.values()
         self.assertMm(got["bridge"], 19 * 150 / 140)
@@ -381,7 +364,7 @@ class FitTests(Base):
 
     def test_refuses_with_explode_data(self):
         build()
-        self.props.paste = "Frame Width 150mm"
+        self.set_specs(frame_width=150)
         bpy.data.objects["front_rim"][explode_slider.KEY] = (0.0, 0.0, 0.0)
         with self.assertRaisesRegex(RuntimeError, "Explode"):
             self.fit()
@@ -391,53 +374,29 @@ class FitTests(Base):
         root = build()
         root.rotation_euler.z = 0.2
         self.refresh()
-        self.props.paste = "Frame Width 150mm"
+        self.set_specs(frame_width=150)
         with self.assertRaisesRegex(RuntimeError, "rotation"):
             self.fit()
         self.assertEqual(root.scale.x, 1.0)
 
     def test_refuses_on_a_conflict(self):
         build()
-        self.props.paste = "Temple Length 140mm Lens Height 30mm"
+        self.set_specs(temple_length=140, lens_height=30)
         with self.assertRaisesRegex(RuntimeError, "No single scale"):
             self.fit()
         self.assertEqual(bpy.data.objects["SKU"].scale.x, 1.0)
 
     def test_refuses_when_already_in_range(self):
         build()
-        self.props.paste = SPEC_LINE
+        self.set_specs(**SPEC)
         with self.assertRaisesRegex(RuntimeError, "Nothing to fit"):
             self.fit()
 
 
-class SpecPresetTests(Base):
-    def setUp(self):
-        super().setUp()
-        tmp = tempfile.mkdtemp()
-        self.original = ui.specs_file
-        ui.specs_file = lambda: os.path.join(tmp, "sub", "specs.json")  # never the real config
-
-    def tearDown(self):
-        ui.specs_file = self.original
-        super().tearDown()
-
-    def test_save_then_load_by_sku_keeps_exact_frame(self):
-        build(root_name="ABC123")
-        self.props.paste = SPEC_LINE
-        self.props.exact_frame = False
-        bpy.ops.modelerkit.dimensions_save_spec()
-        self.props.frame_width = self.props.bridge = 0
-        self.props.exact_frame = True
-        bpy.ops.modelerkit.dimensions_load_spec(sku="ABC123")
-        self.assertEqual((self.props.frame_width, self.props.bridge, self.props.exact_frame), (140, 19, False))
-
-    def test_save_needs_one_top_parent(self):
-        with self.assertRaisesRegex(RuntimeError, "one top parent"):
-            bpy.ops.modelerkit.dimensions_save_spec()
-
+class CopyReportTests(Base):
     def test_copy_report_lists_spec_model_and_notes(self):
         build()
-        self.props.paste = SPEC_LINE
+        self.set_specs(**SPEC)
         bpy.data.objects["lens_right"].scale.z = 1.5
         self.refresh()
         self.assertEqual(bpy.ops.modelerkit.dimensions_copy_report(), {"FINISHED"})

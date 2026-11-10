@@ -14,19 +14,6 @@ def values(frame=140.1, bridge=19.0, lens=40.3, temple=140.2):
     return {"frame_width": frame, "bridge": bridge, "lens_height": lens, "temple_length": temple}
 
 
-class ParseTests(unittest.TestCase):
-    def test_task_page_line(self):
-        got = logic.parse("Lens Height 40mm Bridge Width 19mm Temple Length 140mm Frame Width 142.5mm")
-        self.assertEqual(got, {"lens_height": 40.0, "bridge": 19.0, "temple_length": 140.0, "frame_width": 142.5})
-
-    def test_any_order_case_and_separators(self):
-        self.assertEqual(logic.parse("frame width: 140 mm\nBRIDGE 19"), {"frame_width": 140.0, "bridge": 19.0})
-
-    def test_junk_finds_nothing(self):
-        self.assertEqual(logic.parse("hello 40mm"), {})
-        self.assertEqual(logic.parse(""), {})
-
-
 class StatusTests(unittest.TestCase):
     def test_limits_are_inclusive_after_rounding(self):
         self.assertEqual(logic.status(143.0, 140, 3), "near")

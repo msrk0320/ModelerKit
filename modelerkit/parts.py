@@ -155,26 +155,6 @@ def _left_sources(context):
     return [m for m in meshes_of(o) if side(measure.base_name(m)) == "left"]
 
 
-class MODELERKIT_OT_set_up_hierarchy(bpy.types.Operator):
-    """Build the top parent with frame, lenses and temples, and sort the selected parts into them by name
-    (every named part in the scene when nothing is selected)"""
-    bl_idname = "modelerkit.set_up_hierarchy"
-    bl_label = "Set Up Hierarchy"
-    bl_options = {"REGISTER", "UNDO"}
-
-    @classmethod
-    def poll(cls, context):
-        return context.mode == "OBJECT"
-
-    def execute(self, context):
-        root, unknown = set_up_hierarchy(context, context.selected_objects or list(context.scene.objects))
-        if unknown:
-            self.report({"WARNING"}, "%s set up; not a part name, left where it was: %s" % (root.name, ", ".join(unknown)))
-        else:
-            self.report({"INFO"}, "%s set up" % root.name)
-        return {"FINISHED"}
-
-
 class MODELERKIT_OT_rename_part(bpy.types.Operator):
     """Give the active object one of the part names"""
     bl_idname = "modelerkit.rename_part"
@@ -260,7 +240,6 @@ def update_fold(scene, context):
 
 def draw(layout, context):
     col = layout.column(align=True)
-    col.operator(MODELERKIT_OT_set_up_hierarchy.bl_idname, icon="OUTLINER")
     col.operator_menu_enum(MODELERKIT_OT_rename_part.bl_idname, "part", text="Rename Active", icon="SORTALPHA")
     col.operator(MODELERKIT_OT_copy_left_to_right.bl_idname, icon="MOD_MIRROR")
     row = layout.row()
@@ -268,7 +247,7 @@ def draw(layout, context):
     row.prop(context.scene, "mk_temple_fold", slider=True)
 
 
-CLASSES = (MODELERKIT_OT_set_up_hierarchy, MODELERKIT_OT_rename_part, MODELERKIT_OT_copy_left_to_right)
+CLASSES = (MODELERKIT_OT_rename_part, MODELERKIT_OT_copy_left_to_right)
 
 
 def register():
