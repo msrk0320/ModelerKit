@@ -58,7 +58,7 @@ Required: `frame`, `lenses`, `temples`, `front_rim`, `lens_left`, `lens_right`, 
 - **Fold Temples:** swings both temples in about their hinges, to check the fold. The hinge is taken as the temple's front outer corner. Back to 0 puts them back exactly, even after Fit to Spec. It is grey while there is Explode data.
 
 **Explode**
-- **Explode slider:** spreads the parts apart along the chosen axis, including loose pieces inside a mesh. Move it back to 0 to put everything together. Parts at the same place on that axis that sit apart on the other two, like a left and right pair, move together and stay level.
+- **Explode slider:** spreads the parts apart along the chosen axis, including loose pieces inside a mesh. Move it back to 0 to put everything together. Parts at the same place on that axis that sit apart on the other two, like a left and right pair, move together and stay level. Linked copies that are turned or mirrored differently, like left and right temples sharing one mesh, move as whole parts; their loose pieces aren't split.
 - **X / Y / Z:** the world axis to spread along. X is the default. You can switch while exploded, and the parts move to the new axis.
 - **Selected Only:** the slider moves only what is selected at that moment, and children ride with a selected parent. Turn it on if the file has a head, a floor or a second product.
 - **Reset:** puts everything back and removes all explode data from the file.
@@ -101,7 +101,7 @@ For a thin line beside the lens, when the rim's edge loop stops short of it. Cli
 - **Folder:** the folder Painter exported into. The default, `//`, needs a saved file. It uses `<blend name>\Textures\` beside the `.blend` if that exists, which is where Painter's export goes when the `.spp` has the same name and folder as the `.blend`. Otherwise it uses the `.blend` file's own folder. A folder you pick yourself is used as it is.
 - **Normal Map:** untick it before Import Textures to leave the normal map out. To remove one already connected, untick it and press Import Textures again.
 - **Import Textures:** connects `<Material>_BaseColor`, `_Roughness`, `_Metallic` (or `_metalness`), `_Normal` and `_Transmissive` to each material with the same name. Capitals don't matter, and neither does a leading `Mat_`, so `Mat_ABC` picks up `ABC_basecolor.png`. It uses the selected objects, or the whole scene if nothing is selected.
-- **Reload Textures:** reads already imported images again after a new Painter export. For a new map, press Import Textures. If a file was deleted it warns with the name, and that texture may show pink.
+- **Reload Textures:** reads already imported images again after a new Painter export. For a new map, press Import Textures. If a file was deleted it warns with the name, and that texture may show pink. Packed images keep their old pixels; it names them, so unpack them (File > External Data) to see the new export.
 - **Install Painter Export:** copies a small script into Painter's startup folder, replacing an older copy. Restart Painter, then use **File > Export Textures to Project Folder**. It writes every texture set to `<spp folder>\<spp name>\Textures\` as 2048 PNGs with the names Import Textures expects. Tested on Painter 12.1; it needs a Painter version that includes PySide6. The button is grey while Painter already has this version of the script, and comes back when an update changes it or the script is removed.
 
 **Turntable**

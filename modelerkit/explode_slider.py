@@ -152,6 +152,12 @@ def island_key(o, axis):
     """Return the Explode shape key, building it from the mesh's loose parts if missing. The pieces move along this
     world axis, whatever the object's rotation or (negative) scale."""
     me, kb = o.data, explode_key(o)
+    to_world = o.matrix_world.to_3x3()
+    if any(abs(x) > 1e-6 for u in bpy.data.objects if u.data == me
+           for row in u.matrix_world.to_3x3() - to_world for x in row):
+        # a mesh shared by copies turned or mirrored differently: one key would move some of their pieces backwards
+        remove_key(o)
+        return None
     if kb:
         return kb
     if not me.vertices:
@@ -170,7 +176,6 @@ def island_key(o, axis):
             parent[a] = b
     roots = [find(i) for i in range(len(me.vertices))]
     lo, hi = {}, {}
-    to_world = o.matrix_world.to_3x3()
     for v, r in zip(me.vertices, roots):
         c = to_world @ v.co
         if r not in lo:

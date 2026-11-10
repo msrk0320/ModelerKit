@@ -1,5 +1,8 @@
 """Run: blender --background --factory-startup --python-exit-code 1 --python tests\test_sp_texture_link_blender.py"""
+import os
 import sys
+import tempfile
+import types
 import unittest
 from pathlib import Path
 
@@ -22,6 +25,21 @@ class SpTextureLinkTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "Save the .blend"):
                 op()
 
+
+    def test_packed_image_is_named_in_a_warning(self):
+        folder = tempfile.mkdtemp()
+        img = bpy.data.images.new("Frame_BaseColor", 4, 4)
+        img.filepath_raw = os.path.join(folder, "Frame_BaseColor.png")
+        img.file_format = "PNG"
+        img.save()
+        img.pack()
+        bpy.context.scene.mk_sp_texture_folder = folder
+        reports = []
+        op = types.SimpleNamespace(report=lambda kind, msg: reports.append((kind, msg)))
+        sp_texture_link.MODELERKIT_OT_reload.execute(op, bpy.context)
+        self.assertEqual(len(reports), 1, reports)
+        self.assertEqual(reports[0][0], {"WARNING"})
+        self.assertIn("1 packed image(s) keep their old pixels: Frame_BaseColor", reports[0][1])
 
 if __name__ == "__main__":
     result = unittest.main(argv=["blender"], exit=False).result

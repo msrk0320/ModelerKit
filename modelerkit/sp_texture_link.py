@@ -188,7 +188,7 @@ class MODELERKIT_OT_reload(bpy.types.Operator):
             return {"CANCELLED"}
         folder = _folder(context)
 
-        count, missing = 0, []
+        count, missing, packed = 0, [], []
         for img in bpy.data.images:
             if img.source != "FILE" or not img.filepath:
                 continue
@@ -196,6 +196,7 @@ class MODELERKIT_OT_reload(bpy.types.Operator):
             if os.path.normcase(os.path.dirname(path)) != os.path.normcase(folder):
                 continue
             if img.packed_file:
+                packed.append(img.name)
                 continue  # packed images would reload the packed copy, not the new export
             if not os.path.exists(path):
                 missing.append(os.path.basename(path))
@@ -207,14 +208,17 @@ class MODELERKIT_OT_reload(bpy.types.Operator):
             for area in window.screen.areas:
                 area.tag_redraw()
 
-        if count == 0 and not missing:
+        if count == 0 and not missing and not packed:
             self.report({"WARNING"}, "No loaded images come from this folder - use Import Textures first")
             return {"CANCELLED"}
         parts = ["Reloaded %d texture(s)" % count] if count else []
         if missing:
             parts.append("Missing from the folder: %s" % ", ".join(missing))
+        if packed:
+            parts.append("%d packed image(s) keep their old pixels: %s. Unpack them (File > External Data) to see "
+                         "the new export" % (len(packed), ", ".join(packed)))
         msg = "; ".join(parts)
-        self.report({"WARNING"} if missing else {"INFO"}, msg)
+        self.report({"WARNING"} if missing or packed else {"INFO"}, msg)
         if count == 0:
             return {"CANCELLED"}
         return {"FINISHED"}

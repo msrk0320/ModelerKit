@@ -193,6 +193,17 @@ class SliderTests(ExplodeBase):
         slide(0.0)
         self.assertIsNone(explode_key(a))
 
+    def test_mirrored_linked_copies_are_not_split(self):
+        """One key on a mesh shared with a mirror copy moved the copy's pieces the wrong way."""
+        a = part("a", (0, 0, 0), pieces=2)
+        b = part("b", (6, 0, 0), mesh=a.data)
+        b.scale.x = -1.0
+        bpy.context.view_layer.update()
+        before = shown(b)
+        slide(1.0)
+        self.assertIsNone(explode_key(a))
+        self.assertEqual(shown(b), before)
+
     def test_non_mesh_objects_are_left_alone(self):
         a, b = part("a", (0, 0, 0)), part("b", (2, 0, 0))
         empty = bpy.data.objects.new("empty", None)
