@@ -7,7 +7,7 @@
       "id": "modelerkit",
       "name": "Modeler Kit",
       "tagline": "Check model, explode, dimensions, lens gap, textures",
-      "version": "1.10.0",
+      "version": "1.10.1",
       "type": "add-on",
       "maintainer": "MadSrei",
       "license": [
@@ -22,9 +22,9 @@
         "Material",
         "UV"
       ],
-      "archive_url": "./modelerkit-1.10.0.zip",
-      "archive_size": 39424,
-      "archive_hash": "sha256:d5f20adfe646eaa79f57b7c401776c96fd5b34fbb933f0e15b0b8edd58d90692"
+      "archive_url": "./modelerkit-1.10.1.zip",
+      "archive_size": 39639,
+      "archive_hash": "sha256:f5bf1a6c7c52ebd9a6ae2a401a94c76a1fd8d2a562b8fea9cb129b0aaa6fd2d5"
     }
   ]
 }

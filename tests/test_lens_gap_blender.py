@@ -79,9 +79,8 @@ def make_cut_rim(front_y, back_y, flip_rows=()):
     return o
 
 
-def make_lens(name="lens_left"):
-    """Flat fan at y=0, wider than the tube so every edge crossing y=0 hits it."""
-    r = RADIUS + 0.05
+def make_lens(name="lens_left", r=RADIUS + 0.05):
+    """Flat fan at y=0, by default wider than the tube so every edge crossing y=0 hits it."""
     vs = [(0, 0, 0)] + [(r * math.cos(2 * math.pi * i / N), 0, r * math.sin(2 * math.pi * i / N)) for i in range(N)]
     fs = [(0, 1 + i, 1 + (i + 1) % N) for i in range(N)]
     me = bpy.data.meshes.new(name)
@@ -254,6 +253,17 @@ class LensGapTests(unittest.TestCase):
         bpy.ops.object.mode_set(mode="OBJECT")
         self.assertEqual(state(rim), before)
         self.assertEqual({v.index for v in rim.data.vertices if v.select}, set(range(N, 2 * N)))
+
+    def test_loop_outside_the_lens_outline_goes_straight_onto_it(self):
+        # the loop lies in the lens plane just outside its edge, so no rim edge crosses the lens
+        rim = make_rim(ring_y=lambda i: 0.0)
+        make_lens(r=RADIUS - 0.005)
+        self.activate(rim)
+        bpy.ops.modelerkit.close_lens_gap()
+        for i in ring_indices():
+            v = rim.data.vertices[i].co
+            self.assertAlmostEqual(v.y, 0.0, places=5)
+            self.assertAlmostEqual(math.hypot(v.x, v.z), RADIUS - 0.005, places=5)
 
     def test_cut_rim_both_sides_meet_past_the_open_ends(self):
         # alternating sides of the lens: half the verts slide inward, half have to go past their open end

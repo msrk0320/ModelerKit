@@ -175,7 +175,8 @@ def _with_other_side_of_cuts(rings, bm, matrix, trees, search):
 
 
 def _plan(bm, matrix, trees, search, offset, use_selection):
-    """(moves as (vert, edge, fraction), verts that can't reach the lens, largest gap)."""
+    """(moves as (vert, edge, fraction), snaps as (vert, local target), verts that can't reach the lens, largest
+    gap)."""
     bm.faces.ensure_lookup_table()
     bm.faces.index_update()
     bm.edges.index_update()
@@ -186,7 +187,8 @@ def _plan(bm, matrix, trees, search, offset, use_selection):
     band = band or _inward_faces(bm)
     banded_lenses = {_nearest_lens(trees, matrix @ r[0][0].co)[0] for r in rings
                      if any(f.index in band for v in r[0] for f in v.link_faces)}
-    moves, failed, gap = [], [], 0.0
+    inverse = matrix.inverted()
+    moves, snaps, failed, gap = [], [], [], 0.0
     for verts, ring_edges, _ in rings:
         for v in verts:
             lens, dist = _nearest_lens(trees, matrix @ v.co)
@@ -194,9 +196,12 @@ def _plan(bm, matrix, trees, search, offset, use_selection):
             move = _plan_vert(v, ring_edges, band, lens in banded_lenses, matrix, trees[lens], offset)
             if move:
                 moves.append((v, *move))
+            elif dist <= search:
+                # no edge crosses the lens, as when the loop runs just outside its outline: go straight onto it
+                snaps.append((v, inverse @ trees[lens].find_nearest(matrix @ v.co)[0]))
             else:
                 failed.append(v)
-    return moves, failed, gap
+    return moves, snaps, failed, gap
 
 
 def _slide_uvs(moves, uv_layers):
@@ -252,7 +257,7 @@ def _run(op, context, apply):
         bm.from_mesh(rim.data)
     try:
         try:
-            moves, failed, gap = _plan(bm, rim.matrix_world, trees, settings.mk_lens_gap_search,
+            moves, snaps, failed, gap = _plan(bm, rim.matrix_world, trees, settings.mk_lens_gap_search,
                                        settings.mk_lens_gap_offset, editing)
         except Refused as refused:
             op.report({"ERROR"}, str(refused))
@@ -263,8 +268,12 @@ def _run(op, context, apply):
         elif apply:
             _slide_uvs(moves, list(bm.loops.layers.uv.values()))
             moved = sum(abs(t) * edge.calc_length() > 1e-7 for _, edge, t in moves)
+            moved += sum((v.co - target).length > 1e-7 for v, target in snaps)
             for v, edge, t in moves:
                 v.co = v.co + (edge.other_vert(v).co - v.co) * t
+            # shortcut: snapped verts leave their UVs, fine within Search Distance; slide UVs too if stretch shows
+            for v, target in snaps:
+                v.co = target
         if failed or apply:
             if editing:
                 bmesh.update_edit_mesh(rim.data)
@@ -277,12 +286,13 @@ def _run(op, context, apply):
     if failed:
         op.report({"ERROR"}, "%d of %d verts can't slide onto the lens along their edges. Nothing moved; they are "
                   "selected (see them in Edit Mode). Fix them by hand."
-                  % (len(failed), len(failed) + len(moves)))
+                  % (len(failed), len(failed) + len(moves) + len(snaps)))
         return {"FINISHED"}  # the selection changed: this gives Ctrl+Z a step, so it can't undo the user's last action
     if apply:
         op.report({"INFO"}, "Closed: %d verts moved, largest gap was %.4f" % (moved, gap))
     else:
-        op.report({"INFO"}, "Check: %d verts can reach the lens, largest gap %.4f" % (len(moves), gap))
+        op.report({"INFO"}, "Check: %d verts can reach the lens (%d straight, not along an edge), largest gap %.4f"
+                  % (len(moves) + len(snaps), len(snaps), gap))
     return {"FINISHED"}
 
 

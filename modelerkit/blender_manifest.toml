@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 id = "modelerkit"
-version = "1.10.0"
+version = "1.10.1"
 name = "Modeler Kit"
 tagline = "Check model, explode, dimensions, lens gap, textures"
 maintainer = "MadSrei"
