@@ -38,17 +38,18 @@ Required: `frame`, `lenses`, `temples`, `front_rim`, `lens_left`, `lens_right`, 
 
 **Check Model**
 - **Check Model:** lists what QA would flag, and changes nothing. A **Fix** button sits beside each problem it can fix; hover it to see what it does and the full list of parts.
+  - Explode data left in the file, so parts may be away from their place. Fix: Explode > Reset.
   - Top parent and groups missing, or a part in the wrong group. Fix: builds the top parent with `frame`, `lenses`, `temples`, `temple_left` and `temple_right`, and moves every named part under the right group. Parts stay where they are. It reuses a top parent that is already there; otherwise it names the new one after the `.blend` file, so rename it to the SKU.
   - A required part missing, or a name that isn't in the tree. Fix by hand.
   - A `.001` ending. Fix: removes it, when the plain name is free.
-  - A `_left` part sitting on the wearer's right, or the other way round. Fix: swaps left and right in those names.
-  - Scale not applied. Fix: applies it.
+  - A `_left` part sitting on the wearer's right, or the other way round, measured from the top parent. Fix: swaps left and right in those names. It refuses, and changes nothing, when the new name is already taken by another part.
+  - Scale not applied, on a part, a group or the top parent (Fit to Spec scales the top parent). Fix: applies it, parents first, so every part keeps its size and place.
   - No UV map, or more than one, or not called `UVMap`. Fix: Single UV Map.
   - Not one `Mat_<top parent>` material on every part. Fix: Single Material from Root.
   - Loose verts or edges, n-gons, flipped normals. Fixes: deletes them, triangulates the n-gons, recalculates normals outside.
   - UVs outside 0-1, and UVs overlapping among parts that share a material, including stacked left and right islands. No fix: move the islands yourself.
   - Texel density: the lowest and highest, in px/cm at 2048.
-  - A right part that isn't a mirror of its left, as a note, because a logo on one side is fine. Fix: replaces the right part with a mirror of the left, UVs included, so the two sides share UV space.
+  - A right part that isn't a mirror of its left across the top parent, as a note, because a logo on one side is fine. Fix: replaces the right part with a mirror of the left. The right part keeps its own UVs when its faces still match the mirror one for one. Otherwise it gets the left's UVs, which stack on the left's and show as overlapping: move its islands yourself.
 - Press Check Model again after changing the model by hand.
 
 **Explode**
@@ -76,7 +77,7 @@ Compares the task's measurements with the model, live. The file needs one top pa
 
 **Close Lens Gap**
 
-For a thin line beside the lens, when the rim's edge loop stops short of it. Click the rim so it is the active object. Lens meshes must be named `lens_...`.
+For a thin line beside the lens, when the rim's edge loop stops short of it. Click the rim so it is the active object. Lens meshes must be named `lens_...`. It uses the lenses of the rim's own product (its top parent), or every lens in the scene when the rim has no parent.
 - **Search Distance:** how close a loop must be to a lens to be found on its own. Selecting the loop in Edit Mode ignores this.
 - **Offset:** how far past the lens the loop lands. The default, 0, sits exactly on the lens. Raise it only if the line returns; too high shows the flipped band from the front.
 - **Check:** measures the gap and moves nothing. If some verts can't reach the lens, it selects them.
@@ -89,7 +90,7 @@ For a thin line beside the lens, when the rim's edge loop stops short of it. Cli
 - **Single Material from Root:** gives the selected parts of each product one material, named `Mat_<top parent name>`. Name the top parent after the SKU. A mesh shared by two products with Alt+D is left alone, with a warning, so Import Textures skips it too.
 
 **SP Textures**
-- **Export for Painter:** writes `<blend name>.fbx` beside the saved `.blend`: the selected objects, or every mesh when nothing is selected, with modifiers applied. Pressing it again overwrites the FBX. Save the Painter project in the same folder under the same name, and Import Textures finds its export without picking a folder.
+- **Export for Painter:** refuses while there is Explode data (press **Reset** first). Writes `<blend name>.fbx` beside the saved `.blend`: the selected objects, or every mesh when nothing is selected, with modifiers applied. Pressing it again overwrites the FBX. Save the Painter project in the same folder under the same name, and Import Textures finds its export without picking a folder.
 - **Folder:** the folder Painter exported into. The default, `//`, needs a saved file. It uses `<blend name>\Textures\` beside the `.blend` if that exists, which is where Painter's export goes when the `.spp` has the same name and folder as the `.blend`. Otherwise it uses the `.blend` file's own folder. A folder you pick yourself is used as it is.
 - **Normal Map:** untick it before Import Textures to leave the normal map out. To remove one already connected, untick it and press Import Textures again.
 - **Import Textures:** connects `<Material>_BaseColor`, `_Roughness`, `_Metallic` (or `_metalness`), `_Normal` and `_Transmissive` to each material with the same name. Capitals don't matter, and neither does a leading `Mat_`, so `Mat_ABC` picks up `ABC_basecolor.png`. It uses the selected objects, or the whole scene if nothing is selected.
@@ -101,6 +102,8 @@ For a thin line beside the lens, when the rim's edge loop stops short of it. Cli
 
 **Uninstall Modeler Kit:** in Edit > Preferences > Get Extensions (or Add-ons), expand Modeler Kit and press Uninstall Modeler Kit. It asks to confirm, then removes the add-on from Blender. Your scenes are not changed.
 
+**Turn On Updates:** in the same place. Modeler Kit adds its update repository once, the first time it is enabled. If you removed it, this adds it back. It is grey while updates are on.
+
 ## Good to know
 
 - If a button is grey, select a mesh first, or return to Object Mode.
@@ -110,6 +113,6 @@ For a thin line beside the lens, when the rim's edge loop stops short of it. Cli
 
 Build: `python build.py` (the zip goes to `dist/`).
 
-Tests, on Blender 4.5 and 5.2. Run this once for each file in `tests/` (this example runs one of them):
+Tests, on Blender 4.5. Run this once for each file in `tests/` (this example runs one of them):
 
     blender -b --factory-startup --python-exit-code 1 --python tests\test_modelerkit_blender.py

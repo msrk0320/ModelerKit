@@ -9,7 +9,7 @@ import bpy
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import modelerkit  # noqa: E402
-from modelerkit import check_model  # noqa: E402
+from modelerkit import check_model, explode_slider  # noqa: E402
 from tests.test_dimensions_blender import box_mesh, build, empty  # noqa: E402
 
 
@@ -37,6 +37,18 @@ def clean():
             for loop in o.data.uv_layers[0].data:
                 loop.uv = (0, 0)
     return root
+
+
+def world_verts(o):
+    return sorted(tuple(round(c, 4) for c in o.matrix_world @ v.co) for v in o.data.vertices)
+
+
+def layout(o, u0):
+    """A small square of UV space per face, side by side from u0."""
+    uv = o.data.uv_layers[0].data
+    for k, f in enumerate(o.data.polygons):
+        for j, li in enumerate(f.loop_indices):
+            uv[li].uv = (u0 + 0.06 * k + 0.05 * (j in (1, 2)), 0.1 + 0.05 * (j in (2, 3)))
 
 
 class Base(unittest.TestCase):
@@ -140,6 +152,52 @@ class CheckTests(Base):
         note = self.assertFound("copy_left")
         self.assertEqual(note.level, "info")
         self.assertFixed("copy_left")
+
+    def test_explode_data_is_found_and_reset(self):
+        clean()
+        bpy.data.objects["front_rim"][explode_slider.KEY] = (0.0, 0.0, 0.0)
+        self.assertFixed("explode_reset")
+        self.assertFalse(explode_slider.has_data())
+
+    def test_scaled_root_is_found_and_applied_with_every_part_in_place(self):
+        root = clean()
+        root.scale = (1.1, 1.1, 1.1)
+        bpy.context.view_layer.update()
+        before = {o.name: world_verts(o) for o in root.children_recursive if o.type == "MESH"}
+        self.assertIn(root.name, self.assertFound("apply_scale").objects)
+        self.assertFixed("apply_scale")
+        for o in [root] + list(root.children_recursive):
+            self.assertEqual(tuple(round(s, 6) for s in o.scale), (1, 1, 1), o.name)
+        for name, verts in before.items():
+            self.assertEqual(world_verts(bpy.data.objects[name]), verts, name)
+
+    def test_swap_side_refuses_a_name_already_taken(self):
+        clean()
+        bpy.data.objects["lens_left"].location.x -= 6.9  # now on the right, beside lens_right
+        self.assertFound("swap_side")
+        with self.assertRaisesRegex(RuntimeError, "lens_right already exists"):
+            fix("swap_side")
+        self.assertIn("lens_left", bpy.data.objects)
+        self.assertIn("lens_right", bpy.data.objects)
+
+    def test_mirror_and_sides_go_by_the_top_parent_away_from_the_origin(self):
+        root = clean()
+        root.location.x = 3
+        bpy.context.view_layer.update()
+        self.assertFalse([i for i in issues() if i.fix in ("copy_left", "swap_side")], issues())
+        bpy.data.objects["temple_right_outer"].data.vertices[0].co.y += 0.5
+        self.assertFixed("copy_left")
+        self.assertFalse([i for i in errors() if i.fix == "swap_side"])
+
+    def test_copy_left_keeps_the_right_parts_own_uvs(self):
+        clean()
+        left, right = bpy.data.objects["temple_left_outer"], bpy.data.objects["temple_right_outer"]
+        layout(left, 0.1)
+        layout(right, 0.5)
+        right.data.vertices[0].co.y += 0.1
+        self.assertFalse([i for i in errors() if i.text.startswith("UVs overlap")], issues())
+        self.assertFixed("copy_left")
+        self.assertFalse([i for i in errors() if i.text.startswith("UVs overlap")], issues())
 
     def test_check_changes_nothing(self):
         clean()

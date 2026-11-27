@@ -17,18 +17,44 @@ class MODELERKIT_OT_uninstall(bpy.types.Operator):
             self.report({"ERROR"}, "Not installed as an extension; remove it in Preferences > Add-ons")
             return {"CANCELLED"}
         repos = context.preferences.extensions.repos
-        index = next(i for i, repo in enumerate(repos) if repo.module == parts[1])
+        index = next((i for i, repo in enumerate(repos) if repo.module == parts[1]), None)
+        if index is None:
+            self.report({"ERROR"}, "Its repository is gone; remove it in Preferences > Get Extensions")
+            return {"CANCELLED"}
         return bpy.ops.extensions.package_uninstall(repo_index=index, pkg_id=parts[2])
+
+
+class MODELERKIT_OT_add_update_repository(bpy.types.Operator):
+    bl_idname = "modelerkit.add_update_repository"
+    bl_label = "Turn On Updates"
+    bl_description = "Add the Modeler Kit repository back, so Blender offers each new version"
+
+    @classmethod
+    def poll(cls, context):
+        from . import has_update_repository
+        if has_update_repository():
+            cls.poll_message_set("Updates are already on")
+            return False
+        return True
+
+    def execute(self, context):
+        from . import add_update_repository
+        add_update_repository()
+        return {"FINISHED"}
 
 
 class MODELERKIT_AP_prefs(bpy.types.AddonPreferences):
     bl_idname = __package__
 
+    update_repo_added: bpy.props.BoolProperty(options={"HIDDEN"})  # the repository was added once on first enable
+
     def draw(self, context):
-        self.layout.operator(MODELERKIT_OT_uninstall.bl_idname, icon="TRASH")
+        row = self.layout.row()
+        row.operator(MODELERKIT_OT_add_update_repository.bl_idname, icon="URL")
+        row.operator(MODELERKIT_OT_uninstall.bl_idname, icon="TRASH")
 
 
-classes = (MODELERKIT_OT_uninstall, MODELERKIT_AP_prefs)
+classes = (MODELERKIT_OT_uninstall, MODELERKIT_OT_add_update_repository, MODELERKIT_AP_prefs)
 
 
 def register():

@@ -8,7 +8,7 @@ import numpy as np
 from bpy.app.handlers import persistent
 from mathutils import Vector, kdtree
 
-from . import parts, uv_material
+from . import explode_slider, parts, uv_material
 from .dimensions import measure
 
 UV_GRID = 1024        # overlap test resolution
@@ -93,13 +93,14 @@ def _farthest(points, others):
 
 def _mirrors(root):
     issues = []
+    centre = root.matrix_world.translation.x
     for left in root.children_recursive:
         if left.type != "MESH" or parts.side(measure.base_name(left)) != "left":
             continue
         right = parts.find(root, parts.other_side(measure.base_name(left)))
         if right is None or right.type != "MESH":
             continue
-        a = _world_verts(left) * (-1, 1, 1)
+        a = _world_verts(left) * (-1, 1, 1) + (2 * centre, 0, 0)  # mirrored across the root, as Copy Left does
         b = _world_verts(right)
         if len(a) != len(b):
             off = "%d vs %d verts" % (len(a), len(b))
@@ -112,9 +113,15 @@ def _mirrors(root):
     return issues
 
 
+def _scaled(o):
+    return any(abs(s - 1) > 1e-4 for s in o.scale)
+
+
 def _transforms_and_data(root, meshes):
     issues = []
-    scaled = [o.name for o in meshes if any(abs(s - 1) > 1e-4 for s in o.scale)]
+    # the root and groups too: Fit to Spec scales the root, and an export carries a parent's scale onto every part
+    nodes = [root] + [o for o in root.children_recursive if o.type != "MESH"] if root else []
+    scaled = [o.name for o in nodes + meshes if _scaled(o)]
     if scaled:
         issues.append(Issue("error", "Scale not applied: " + _name_list(scaled), "apply_scale", scaled))
     no_uv = [o.name for o in meshes if not o.data.uv_layers]
@@ -227,7 +234,11 @@ def _uvs(meshes):
 
 def check(context):
     root = parts.product_root(context)
-    issues = _structure(context, root)
+    issues = []
+    if explode_slider.has_data():  # positions below would be the exploded layout, and it would reach an export
+        issues.append(Issue("error", "Explode data in the file: parts may be away from their place", "explode_reset",
+                            ()))
+    issues += _structure(context, root)
     meshes = [o for o in (root.children_recursive if root else context.scene.objects) if o.type == "MESH"]
     if root:
         issues += _sides(root)
@@ -257,10 +268,31 @@ def _delete_loose(bm):
 
 
 def _swap_sides(context, objs):
+    swapping = {o.name for o in objs}
+    taken = sorted(name for name in (parts.other_side(measure.base_name(o)) for o in objs)
+                   if name in bpy.data.objects and name not in swapping)
+    if taken:  # renaming onto it would give a .001
+        raise RuntimeError("%s already exists: rename or delete it first" % ", ".join(taken))
     for o in objs:  # through a temporary name, so a swapped pair doesn't collide
         o.name = "_mk_swap_" + o.name
     for o in objs:
         o.name = parts.other_side(measure.base_name(o)[len("_mk_swap_"):])
+
+
+def _apply_scale(context, objs):
+    """Apply the scale on parents first, top down, then on the meshes: applying a parent's scale hands it down to its
+    children."""
+    def apply(group):
+        _run_on(lambda: bpy.ops.object.transform_apply(location=False, rotation=False, scale=True), group)
+        context.view_layer.update()
+
+    below = set(objs).union(*(o.children_recursive for o in objs if o.type != "MESH"))
+    for o in sorted((o for o in below if o.type != "MESH"), key=explode_slider.depth):
+        if _scaled(o):  # read now: a parent applied just before may have handed its scale down
+            apply([o])
+    meshes = [o for o in below if o.type == "MESH" and _scaled(o)]
+    if meshes:
+        apply(meshes)
 
 
 def _run_on(op, objs):
@@ -270,6 +302,8 @@ def _run_on(op, objs):
 
 
 FIXES = {
+    "explode_reset": ("Put every part back and remove the explode data (Explode > Reset)",
+                      lambda context, objs: bpy.ops.modelerkit.explode_reset()),
     "hierarchy": ("Set up the hierarchy and sort every named part into it",
                   lambda context, objs: parts.set_up_hierarchy(context, list(context.scene.objects))),
     "drop_number": ("Remove the .001 ending", lambda context, objs: [setattr(o, "name", measure.base_name(o))
@@ -277,8 +311,7 @@ FIXES = {
     "swap_side": ("Swap left and right in these names", _swap_sides),
     "copy_left": ("Replace the right part with a mirror of the left",
                   lambda context, objs: parts.copy_left_to_right(context, objs)),
-    "apply_scale": ("Apply the scale", lambda context, objs: _run_on(
-        lambda: bpy.ops.object.transform_apply(location=False, rotation=False, scale=True), objs)),
+    "apply_scale": ("Apply the scale", _apply_scale),
     "single_uv": ("Keep the active UV map, named UVMap (Single UV Map)",
                   lambda context, objs: _run_on(bpy.ops.modelerkit.single_uv_map, objs)),
     "material": ("Give every part one Mat_<top parent> material (Single Material from Root)",
@@ -314,7 +347,7 @@ class MODELERKIT_OT_check_model(bpy.types.Operator):
 class MODELERKIT_OT_check_model_fix(bpy.types.Operator):
     bl_idname = "modelerkit.check_model_fix"
     bl_label = "Fix"
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options = {"UNDO"}  # no Adjust Last Operation: a redo would read the index against the newer list
 
     index: bpy.props.IntProperty(options={"SKIP_SAVE"})
 

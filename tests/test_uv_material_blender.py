@@ -171,6 +171,13 @@ class UvMaterialTests(unittest.TestCase):
         self.assertEqual(mine.data.materials[0].name, "Mat_SKU_A")
         self.assertEqual(other.material_slots[0].material.name, "Acetate")
 
+    def test_single_uv_map_not_offered_in_edit_mode(self):
+        o = mesh_obj("a", ["UVMap", "Old"])
+        bpy.context.view_layer.objects.active = o
+        bpy.ops.object.mode_set(mode="EDIT")
+        self.assertFalse(bpy.ops.modelerkit.single_uv_map.poll())
+        bpy.ops.object.mode_set(mode="OBJECT")
+
     def test_not_offered_in_edit_mode(self):
         """In Edit Mode the edit mesh wrote the old material indices back on exit, onto a slot that was gone."""
         o = mesh_obj("frame", ["UVMap"], [bpy.data.materials.new("x")])

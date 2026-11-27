@@ -72,6 +72,38 @@ class CopyLeftToRightTests(Base):
         self.assertGreater(volume(right), 0)
         self.assertEqual(right.parent.name, "temple_right")
 
+    def test_mirrors_across_the_top_parent_away_from_the_origin(self):
+        root = build()
+        root.location.x = 3
+        bpy.context.view_layer.update()
+        left, right = bpy.data.objects["temple_left_outer"], bpy.data.objects["temple_right_outer"]
+        right.data.vertices[0].co.x -= 1
+        parts.copy_left_to_right(bpy.context, [left])
+        self.assertEqual(world_verts(right), sorted((round(6 - x, 4), y, z) for x, y, z in world_verts(left)))
+        self.assertGreater(volume(right), 0)
+
+    def test_a_right_part_that_still_matches_keeps_its_uvs(self):
+        build()
+        left, right = bpy.data.objects["temple_left_outer"], bpy.data.objects["temple_right_outer"]
+        for i, loop in enumerate(right.data.uv_layers[0].data):
+            loop.uv = (0.5 + 0.01 * i, 0.5)
+        before = sorted(tuple(l.uv) for l in right.data.uv_layers[0].data)
+        right.data.vertices[0].co.y += 0.1
+        parts.copy_left_to_right(bpy.context, [left])
+        self.assertEqual(sorted(tuple(l.uv) for l in right.data.uv_layers[0].data), before)
+
+    def test_a_right_part_with_other_faces_takes_the_lefts_uvs(self):
+        build()
+        left, right = bpy.data.objects["temple_left_outer"], bpy.data.objects["temple_right_outer"]
+        bm = bmesh.new()
+        bm.from_mesh(right.data)
+        bmesh.ops.subdivide_edges(bm, edges=bm.edges[:1], cuts=1)
+        bm.to_mesh(right.data)
+        bm.free()
+        parts.copy_left_to_right(bpy.context, [left])
+        self.assertEqual(sorted(tuple(l.uv) for l in right.data.uv_layers[0].data),
+                         sorted(tuple(l.uv) for l in left.data.uv_layers[0].data))
+
     def test_a_left_group_copies_every_left_part_under_it_and_makes_missing_ones(self):
         build()
         bpy.data.objects.remove(bpy.data.objects["hinge_temple_right"])

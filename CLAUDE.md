@@ -18,7 +18,7 @@ For each `tests\test_*_blender.py`:
 blender -b --factory-startup --python-exit-code 1 --python <file>
 ```
 
-Blender 4.5: `C:\Program Files\Blender Foundation\Blender 4.5\blender.exe`. Also run on 5.2 when the change touches Blender API calls. All must print `OK`.
+Blender 4.5: `C:\Program Files\Blender Foundation\Blender 4.5\blender.exe`. All must print `OK`.
 
 Any scripted Blender run that installs an extension, adds a repository or changes preferences needs its own profile (`BLENDER_USER_RESOURCES=<temp dir>`), and `--factory-startup` for plain tests. A scripted run once wiped the real 4.5 preferences. Never write to the real config.
 
@@ -36,4 +36,4 @@ Never change the repo URL or the id `modelerkit`: installed copies would stop up
 
 ## Open
 
-Nobody has clicked the panel in a live window; the auto-added repository timer, the Uninstall button inside a real extension install, and Ctrl+Z on Single Material from Root on 5.2 are only checked headless.
+Nobody has clicked the panel in a live window; the auto-added repository timer and the Uninstall button inside a real extension install are only checked headless.

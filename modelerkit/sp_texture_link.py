@@ -9,6 +9,8 @@ import sys
 
 import bpy
 
+from . import explode_slider
+
 
 # Map suffix written by the Painter plugin -> (Principled BSDF input, colour space).
 # Files are named <TextureSet>_<Suffix>.png, texture set name == material name.
@@ -287,6 +289,10 @@ class MODELERKIT_OT_export_for_painter(bpy.types.Operator):
         return context.mode == "OBJECT"
 
     def execute(self, context):
+        # exploded parts would land in the FBX away from their place, with the Explode shape key on them
+        if explode_slider.has_data():
+            self.report({"ERROR"}, "Press Explode > Reset first: the FBX would get the exploded layout")
+            return {"CANCELLED"}
         path = os.path.splitext(bpy.data.filepath)[0] + ".fbx"
         try:
             bpy.ops.export_scene.fbx(filepath=path, use_selection=bool(context.selected_objects),

@@ -12,8 +12,17 @@ class Refused(Exception):
     """The rim can't be processed; the message says why. Nothing was changed."""
 
 
-def _lenses(rim):
-    return [o for o in bpy.data.objects if o is not rim and o.type == "MESH" and o.name.startswith("lens_")]
+def _lenses(rim, scene):
+    """The lens meshes of the rim's own product when it sits in one, else every lens in the scene. Not the whole
+    file: another scene or a second product's lens would pull the loop to the wrong place."""
+    root = rim
+    while root.parent:
+        root = root.parent
+    pool = root.children_recursive if root is not rim else scene.objects
+    lenses = [o for o in pool if o is not rim and o.type == "MESH" and o.name.startswith("lens_")]
+    if not lenses and root is not rim:
+        lenses = [o for o in scene.objects if o is not rim and o.type == "MESH" and o.name.startswith("lens_")]
+    return lenses
 
 
 def _lens_trees(lenses):
@@ -237,7 +246,7 @@ def _run(op, context, apply):
     if rim.name.startswith("lens_"):
         op.report({"ERROR"}, "The active object is a lens: click the rim")
         return {"CANCELLED"}
-    lenses = _lenses(rim)
+    lenses = _lenses(rim, context.scene)
     # exploded parts sit away from their rest place, so a slide would close the gap against the wrong spot
     if explode_slider.exploded([rim] + lenses):
         op.report({"ERROR"}, "Move the Explode slider back to 0 first")

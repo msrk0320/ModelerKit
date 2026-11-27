@@ -13,12 +13,26 @@ MODULES = (explode_slider, lock_location, dimensions, lens_gap, uv_material, sp_
 UPDATE_URL = "https://raw.githubusercontent.com/msrk0320/ModelerKit/master/dist/index.json"
 
 
+def has_update_repository():
+    return any(repo.remote_url == UPDATE_URL for repo in bpy.context.preferences.extensions.repos)
+
+
+def add_update_repository():
+    bpy.ops.preferences.extension_repo_add(name="Modeler Kit", type="REMOTE", remote_url=UPDATE_URL,
+                                           use_sync_on_startup=True)
+
+
 def _add_update_repository():
-    """Add the update repository once, so a drag-and-drop install keeps itself up to date."""
-    repos = bpy.context.preferences.extensions.repos
-    if not any(repo.remote_url == UPDATE_URL for repo in repos):
-        bpy.ops.preferences.extension_repo_add(name="Modeler Kit", type="REMOTE", remote_url=UPDATE_URL,
-                                               use_sync_on_startup=True)
+    """Add the update repository once, so a drag-and-drop install keeps itself up to date. Once only: a user who
+    removes it keeps it removed (Preferences has a button to add it back)."""
+    addon = bpy.context.preferences.addons.get(__package__)
+    prefs = addon.preferences if addon else None
+    if prefs is not None and prefs.update_repo_added:
+        return None
+    if not has_update_repository():
+        add_update_repository()
+    if prefs is not None:
+        prefs.update_repo_added = True
     return None
 
 

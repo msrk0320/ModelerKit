@@ -5,7 +5,7 @@ import re
 
 import bmesh
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Matrix, Vector, kdtree
 
 from .dimensions import measure
 
@@ -108,9 +108,45 @@ def set_up_hierarchy(context, objects):
     return root, unknown
 
 
+def mirror_across(x):
+    """World mirror across the plane X = x."""
+    return Matrix.Translation((x, 0, 0)) @ MIRROR_X @ Matrix.Translation((-x, 0, 0))
+
+
+def keep_uvs(old, new, old_matrix, new_matrix):
+    """Copy the old right mesh's UVs onto the new mirror, so the two sides don't stack in the same UV space. Only when
+    every new face has its own old face nearest it, with the same corners; returns whether it did."""
+    if not old.uv_layers or len(old.polygons) != len(new.polygons) or not new.uv_layers:
+        return False
+    tree = kdtree.KDTree(len(old.polygons))
+    for i, f in enumerate(old.polygons):
+        tree.insert(old_matrix @ f.center, i)
+    tree.balance()
+    match = [tree.find(new_matrix @ f.center)[1] for f in new.polygons]
+    if len(set(match)) != len(match):
+        return False
+    old_uv, new_uv = old.uv_layers.active.data, new.uv_layers.active.data
+    plan = []
+    for f, i in zip(new.polygons, match):
+        g = old.polygons[i]
+        if g.loop_total != f.loop_total:
+            return False
+        corners = {}
+        for li in g.loop_indices:
+            corners[li] = old_matrix @ old.vertices[old.loops[li].vertex_index].co
+        for li in f.loop_indices:
+            at = new_matrix @ new.vertices[new.loops[li].vertex_index].co
+            plan.append((li, min(corners, key=lambda k: (corners[k] - at).length)))
+    for li, oi in plan:
+        new_uv[li].uv = old_uv[oi].uv
+    return True
+
+
 def copy_left_to_right(context, sources):
-    """Mirror each left mesh across world X onto its right twin, replacing the twin's mesh or making it."""
+    """Mirror each left mesh across the product's centre onto its right twin, replacing the twin's mesh or making it.
+    A replaced twin keeps its own UVs when its faces still match one for one."""
     root = product_root(context)
+    mirror = mirror_across(root.matrix_world.translation.x if root else 0.0)
     done = []
     for src in sources:
         name = other_side(measure.base_name(src))
@@ -123,7 +159,9 @@ def copy_left_to_right(context, sources):
         bm.to_mesh(me)
         bm.free()
         dst = (find(root, name) if root else None) or bpy.data.objects.get(name)
+        world = mirror @ src.matrix_world @ MIRROR_X
         if dst is not None and dst.type == "MESH":
+            keep_uvs(dst.data, me, dst.matrix_world, world)
             old, dst.data = dst.data, me
             if not old.users:
                 bpy.data.meshes.remove(old)
@@ -139,7 +177,7 @@ def copy_left_to_right(context, sources):
             dst.parent = parent
             dst.matrix_parent_inverse = Matrix()
             context.view_layer.update()
-        dst.matrix_world = MIRROR_X @ src.matrix_world @ MIRROR_X
+        dst.matrix_world = world
         done.append(dst.name)
     context.view_layer.update()
     return done

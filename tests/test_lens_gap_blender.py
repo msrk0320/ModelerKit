@@ -363,6 +363,20 @@ class LensGapTests(unittest.TestCase):
             bpy.ops.ed.undo()
         self.assertEqual(state(bpy.data.objects["front_rim"]), before)
 
+    def test_uses_only_the_lenses_of_the_rims_own_product(self):
+        rim, lens = make_rim(), make_lens()
+        decoy = make_lens("lens_right")
+        decoy.location.y = 0.003  # another product's lens, nearer some of the loop's verts
+        mine, other = bpy.data.objects.new("SKU_A", None), bpy.data.objects.new("SKU_B", None)
+        for root in (mine, other):
+            bpy.context.scene.collection.objects.link(root)
+        rim.parent = lens.parent = mine
+        decoy.parent = other
+        self.activate(rim)
+        bpy.ops.modelerkit.close_lens_gap()
+        for i in ring_indices():
+            self.assertAlmostEqual(rim.data.vertices[i].co.y, -OFFSET, places=5)
+
     def test_no_lens_refused(self):
         rim = make_rim()
         self.activate(rim)

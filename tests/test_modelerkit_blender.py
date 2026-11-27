@@ -10,7 +10,7 @@ import bpy
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import modelerkit  # noqa: E402
-from modelerkit import check_model, panel, sp_texture_link, turntable  # noqa: E402
+from modelerkit import check_model, explode_slider, panel, sp_texture_link, turntable  # noqa: E402
 
 MAP_NAMES = ("BaseColor", "Roughness", "Metallic", "Normal", "Transmissive")
 
@@ -161,6 +161,14 @@ class ExportForPainterTests(Base):
         bpy.ops.wm.save_as_mainfile(filepath=os.path.join(self.tmp, "JOB.blend"))
         self.assertEqual(bpy.ops.modelerkit.export_for_painter(), {"FINISHED"})
         self.assertTrue(os.path.getsize(os.path.join(self.tmp, "JOB.fbx")) > 0)
+
+    def test_refuses_while_exploded(self):
+        o = mesh("o")
+        bpy.ops.wm.save_as_mainfile(filepath=os.path.join(self.tmp, "JOB.blend"))
+        o[explode_slider.KEY] = (0.0, 0.0, 0.0)
+        with self.assertRaisesRegex(RuntimeError, "Explode > Reset"):
+            bpy.ops.modelerkit.export_for_painter()
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "JOB.fbx")))
 
 
 class TurntableTests(Base):

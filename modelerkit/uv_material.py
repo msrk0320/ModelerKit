@@ -26,6 +26,10 @@ class MODELERKIT_OT_single_uv_map(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        # Object Mode only: in Edit Mode the edit mesh writes its own UV maps back on exit
+        if context.mode != "OBJECT":
+            cls.poll_message_set("Return to Object Mode first")
+            return False
         return bool(_meshes(context))
 
     def execute(self, context):
