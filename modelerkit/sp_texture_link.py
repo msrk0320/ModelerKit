@@ -7,9 +7,11 @@ import re
 import shutil
 import sys
 
+import contextlib
+
 import bpy
 
-from . import explode_slider
+from . import explode_slider, flips
 
 
 # Map suffix written by the Painter plugin -> (Principled BSDF input, colour space).
@@ -278,8 +280,8 @@ class MODELERKIT_OT_export_for_painter(bpy.types.Operator):
     bl_idname = "modelerkit.export_for_painter"
     bl_label = "Export for Painter"
     bl_description = ("Write <blend name>.fbx beside the .blend (selected objects, or every mesh when nothing is "
-                      "selected). Save the Painter project there under the same name, and Import Textures finds "
-                      "its export by itself")
+                      "selected), marked flipped faces sent Flipped or Unflipped as chosen above. Save the Painter "
+                      "project there under the same name, and Import Textures finds its export by itself")
 
     @classmethod
     def poll(cls, context):
@@ -293,19 +295,27 @@ class MODELERKIT_OT_export_for_painter(bpy.types.Operator):
         if explode_slider.has_data():
             self.report({"ERROR"}, "Press Explode > Reset first: the FBX would get the exploded layout")
             return {"CANCELLED"}
+        blocked = flips.packing_block()
+        if blocked:  # the FBX would get the turned-back faces whatever the switch says
+            self.report({"ERROR"}, blocked)
+            return {"CANCELLED"}
         path = os.path.splitext(bpy.data.filepath)[0] + ".fbx"
+        objects = context.selected_objects or context.scene.objects
+        unflip = context.scene.mk_fbx_send_mode == "UNFLIPPED"
         try:
-            bpy.ops.export_scene.fbx(filepath=path, use_selection=bool(context.selected_objects),
-                                     object_types={"MESH"}, use_mesh_modifiers=True, mesh_smooth_type="FACE")
+            with flips.unflipped(objects) if unflip else contextlib.nullcontext():
+                bpy.ops.export_scene.fbx(filepath=path, use_selection=bool(context.selected_objects),
+                                         object_types={"MESH"}, use_mesh_modifiers=True, mesh_smooth_type="FACE")
         except RuntimeError as e:
             self.report({"ERROR"}, "Could not write %s: %s" % (path, str(e).strip()))
             return {"CANCELLED"}
-        self.report({"INFO"}, "Wrote %s" % path)
+        self.report({"INFO"}, "Wrote %s (%s)" % (path, "unflipped" if unflip else "flipped"))
         return {"FINISHED"}
 
 
 def draw(layout, context):
     col = layout.column(align=True)
+    col.row(align=True).prop(context.scene, "mk_fbx_send_mode", expand=True)
     col.operator(MODELERKIT_OT_export_for_painter.bl_idname, icon="EXPORT")
     col.separator()
     col.prop(context.scene, "mk_sp_texture_folder", text="")
@@ -322,6 +332,12 @@ CLASSES = (MODELERKIT_OT_import, MODELERKIT_OT_reload, MODELERKIT_OT_install_pai
 
 
 def register():
+    bpy.types.Scene.mk_fbx_send_mode = bpy.props.EnumProperty(
+        name="Send",
+        description="How Export for Painter writes the faces marked flipped",
+        items=(("FLIPPED", "Flipped", "Marked faces go as they are in the file"),
+               ("UNFLIPPED", "Unflipped", "Marked faces are turned back in the FBX; the file keeps them flipped")),
+        default="FLIPPED")
     bpy.types.Scene.mk_sp_texture_folder = bpy.props.StringProperty(
         name="Texture Folder",
         description="Folder Painter exported into (<spp folder>\\<spp name>\\Textures)",
@@ -343,3 +359,4 @@ def unregister():
         bpy.utils.unregister_class(c)
     del bpy.types.Scene.mk_sp_import_normal
     del bpy.types.Scene.mk_sp_texture_folder
+    del bpy.types.Scene.mk_fbx_send_mode

@@ -98,10 +98,12 @@ class PanelTests(Base):
             "modelerkit.reload_textures", "modelerkit.import_textures", "modelerkit.install_painter_export",
             "modelerkit.check_model", "modelerkit.check_model_fix",
             "modelerkit.export_for_painter",
+            "modelerkit.mark_flipped", "modelerkit.select_marked", "modelerkit.fix_normals",
+            "modelerkit.unflip_for_packing",
             "modelerkit.dimensions_copy_report",
             "modelerkit.turntable"})
         self.assertEqual(set(layout.props), {"mk_explode_factor", "mk_explode_axis", "mk_explode_selected_only",
-                                             "mk_lens_gap_search", "mk_lens_gap_offset", "mk_sp_texture_folder",
+                                             "mk_lens_gap_search", "mk_lens_gap_offset", "mk_sp_texture_folder", "mk_fbx_send_mode",
                                              "exact_frame", "frame_width", "bridge", "lens_height",
                                              "temple_length", "show",
                                              "mk_sp_import_normal"})

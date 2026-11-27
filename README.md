@@ -89,8 +89,16 @@ For a thin line beside the lens, when the rim's edge loop stops short of it. Cli
 - **Single UV Map:** keeps only the active UV map on the selected meshes and names it `UVMap`.
 - **Single Material from Root:** gives the selected parts of each product one material, named `Mat_<top parent name>`. Name the top parent after the SKU. A mesh shared by two products with Alt+D is left alone, with a warning, so Import Textures skips it too.
 
+**Flip Faces**
+- **Mark Flipped:** flips the selected faces and remembers them. In Edit Mode it takes the selected faces and grows them to whole UV islands. In Object Mode it takes every face of the selected meshes. Marking the same faces twice does nothing.
+- **Unmark:** flips the marked faces back and forgets them.
+- **Select Marked:** goes to Edit Mode and selects only the marked faces.
+- **Fix Flipped Normals:** flips every face that points the wrong way, like Alt+N > Recalculate Outside. Marked faces stay flipped. Objects named `lens_*` are left alone.
+- **Unflip for Packing:** turns the marked faces back for a moment (they stay marked), so a UV packer sees every island the same way round. Pack the UVs, then press **Re-flip after Packing**. Mark, Fix Flipped Normals and Export for Painter wait until you do.
+
 **SP Textures**
-- **Export for Painter:** refuses while there is Explode data (press **Reset** first). Writes `<blend name>.fbx` beside the saved `.blend`: the selected objects, or every mesh when nothing is selected, with modifiers applied. Pressing it again overwrites the FBX. Save the Painter project in the same folder under the same name, and Import Textures finds its export without picking a folder.
+- **Flipped / Unflipped:** how Export for Painter writes the faces marked flipped. Flipped sends them as they are in the file. Unflipped turns them back in the FBX only; the file keeps them flipped.
+- **Export for Painter:** refuses while there is Explode data (press **Reset** first) or while faces are unflipped for packing. Writes `<blend name>.fbx` beside the saved `.blend`: the selected objects, or every mesh when nothing is selected, with modifiers applied. Pressing it again overwrites the FBX. Save the Painter project in the same folder under the same name, and Import Textures finds its export without picking a folder.
 - **Folder:** the folder Painter exported into. The default, `//`, needs a saved file. It uses `<blend name>\Textures\` beside the `.blend` if that exists, which is where Painter's export goes when the `.spp` has the same name and folder as the `.blend`. Otherwise it uses the `.blend` file's own folder. A folder you pick yourself is used as it is.
 - **Normal Map:** untick it before Import Textures to leave the normal map out. To remove one already connected, untick it and press Import Textures again.
 - **Import Textures:** connects `<Material>_BaseColor`, `_Roughness`, `_Metallic` (or `_metalness`), `_Normal` and `_Transmissive` to each material with the same name. Capitals don't matter, and neither does a leading `Mat_`, so `Mat_ABC` picks up `ABC_basecolor.png`. It uses the selected objects, or the whole scene if nothing is selected.
