@@ -2,12 +2,11 @@
 
 import bpy
 
-from . import check_model, dimensions, explode_slider, lens_gap, lock_location, sp_texture_link, turntable, \
-    uv_material
+from . import dimensions, explode_slider, flips, lens_gap, lock_location, sp_texture_link, turntable, uv_material
 
-SECTIONS = (("Check Model", check_model), ("Explode", explode_slider), ("Lock", lock_location),
+SECTIONS = (("Explode", explode_slider), ("Lock", lock_location),
             ("Dimensions", dimensions), ("Close Lens Gap", lens_gap), ("UV & Material Names", uv_material),
-            ("SP Textures", sp_texture_link), ("Turntable", turntable))
+            ("Flip Faces", flips), ("SP Textures", sp_texture_link), ("Turntable", turntable))
 
 
 class VIEW3D_PT_modelerkit(bpy.types.Panel):

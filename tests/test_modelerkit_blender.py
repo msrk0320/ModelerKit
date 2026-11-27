@@ -10,7 +10,7 @@ import bpy
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import modelerkit  # noqa: E402
-from modelerkit import check_model, explode_slider, panel, sp_texture_link, turntable  # noqa: E402
+from modelerkit import explode_slider, panel, sp_texture_link, turntable  # noqa: E402
 
 MAP_NAMES = ("BaseColor", "Roughness", "Metallic", "Normal", "Transmissive")
 
@@ -88,7 +88,6 @@ class Base(unittest.TestCase):
 
 class PanelTests(Base):
     def test_every_button_on_the_panel_exists(self):
-        bpy.ops.modelerkit.check_model()  # an empty scene has a problem, so a Fix button shows
         layout = Recorder()
         panel.VIEW3D_PT_modelerkit.draw(type("P", (), {"layout": layout})(), bpy.context)
         self.assertEqual(set(layout.ops), {
@@ -96,12 +95,13 @@ class PanelTests(Base):
             "modelerkit.dimensions_fit", "modelerkit.check_lens_gap", "modelerkit.close_lens_gap",
             "modelerkit.name_materials_from_root",
             "modelerkit.reload_textures", "modelerkit.import_textures", "modelerkit.install_painter_export",
-            "modelerkit.check_model", "modelerkit.check_model_fix",
-            "modelerkit.export_for_painter",
+            "modelerkit.export_for_painter", "modelerkit.open_blend_folder",
+            "modelerkit.mark_flipped", "modelerkit.select_marked", "modelerkit.fix_normals",
+            "modelerkit.unflip_for_packing",
             "modelerkit.dimensions_copy_report",
             "modelerkit.turntable"})
         self.assertEqual(set(layout.props), {"mk_explode_factor", "mk_explode_axis", "mk_explode_selected_only",
-                                             "mk_lens_gap_search", "mk_lens_gap_offset", "mk_sp_texture_folder",
+                                             "mk_lens_gap_search", "mk_lens_gap_offset", "mk_sp_texture_folder", "mk_fbx_send_mode",
                                              "exact_frame", "frame_width", "bridge", "lens_height",
                                              "temple_length", "show",
                                              "mk_sp_import_normal"})
@@ -143,15 +143,6 @@ class UndoTests(Base):
         self.press_then_undo(bpy.ops.modelerkit.import_textures)
         mat = bpy.data.objects["o"].data.materials[0]
         self.assertFalse(mat.node_tree and any(n.name.startswith("SPLink_") for n in mat.node_tree.nodes))
-
-    def test_check_model_fix(self):
-        o = mesh("front_rim")
-        o.scale = (2, 2, 2)
-        with ui():
-            bpy.ops.modelerkit.check_model()
-        index = next(n for n, i in enumerate(check_model._issues) if i.fix == "apply_scale")
-        self.press_then_undo(lambda *args: bpy.ops.modelerkit.check_model_fix(*args, index=index))
-        self.assertEqual(tuple(bpy.data.objects["front_rim"].scale), (2, 2, 2))
 
 
 class ExportForPainterTests(Base):
