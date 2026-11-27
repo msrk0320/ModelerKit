@@ -396,5 +396,17 @@ class ExportForPainterTests(unittest.TestCase):
             bpy.ops.modelerkit.export_for_painter()
 
 
+class OpenBlendFolderTests(unittest.TestCase):
+    def setUp(self):
+        bpy.ops.wm.read_factory_settings(use_empty=True)
+        sp_texture_link.register()
+
+    def tearDown(self):
+        sp_texture_link.unregister()
+
+    def test_needs_a_saved_blend(self):
+        self.assertFalse(bpy.ops.modelerkit.open_blend_folder.poll())
+
+
 if __name__ == "__main__":
     unittest.main(argv=[sys.argv[0]])

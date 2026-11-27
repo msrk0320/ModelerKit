@@ -1,13 +1,13 @@
-"""Modeler Kit: Check Model, Explode, Lock Location, Dimensions, Close Lens Gap, UV & Material Names, Flip
-Faces, SP Textures and Turntable in one sidebar panel."""
+"""Modeler Kit: Explode, Lock Location, Dimensions, Close Lens Gap, UV & Material Names, Flip Faces, SP Textures
+and Turntable in one sidebar panel."""
 
 import bpy
 
-from . import (check_model, dimensions, explode_slider, flips, lens_gap, lock_location, panel, prefs,
-               sp_texture_link, turntable, uv_material)
+from . import (dimensions, explode_slider, flips, lens_gap, lock_location, panel, prefs, sp_texture_link,
+               turntable, uv_material)
 
-MODULES = (explode_slider, lock_location, dimensions, lens_gap, uv_material, flips, sp_texture_link, check_model,
-           turntable, prefs, panel)
+MODULES = (explode_slider, lock_location, dimensions, lens_gap, uv_material, flips, sp_texture_link, turntable,
+           prefs, panel)
 
 
 UPDATE_URL = "https://raw.githubusercontent.com/msrk0320/ModelerKit/master/dist/index.json"

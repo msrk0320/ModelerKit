@@ -36,22 +36,6 @@ The parts follow this tree. Left and right are the wearer's: left is +X, and the
 
 Required: `frame`, `lenses`, `temples`, `front_rim`, `lens_left`, `lens_right`, `temple_left`, `temple_right`, `temple_left_outer` and `temple_right_outer`. The rest are optional.
 
-**Check Model**
-- **Check Model:** lists what QA would flag, and changes nothing. A **Fix** button sits beside each problem it can fix; hover it to see what it does and the full list of parts.
-  - Explode data left in the file, so parts may be away from their place. Fix: Explode > Reset.
-  - Top parent and groups missing, or a part in the wrong group. Fix: builds the top parent with `frame`, `lenses`, `temples`, `temple_left` and `temple_right`, and moves every named part under the right group. Parts stay where they are. It reuses a top parent that is already there; otherwise it names the new one after the `.blend` file, so rename it to the SKU.
-  - A required part missing, or a name that isn't in the tree. Fix by hand.
-  - A `.001` ending. Fix: removes it, when the plain name is free.
-  - A `_left` part sitting on the wearer's right, or the other way round, measured from the top parent. Fix: swaps left and right in those names. It refuses, and changes nothing, when the new name is already taken by another part.
-  - Scale not applied, on a part, a group or the top parent (Fit to Spec scales the top parent). Fix: applies it, parents first, so every part keeps its size and place.
-  - No UV map, or more than one, or not called `UVMap`. Fix: Single UV Map.
-  - Not one `Mat_<top parent>` material on every part. Fix: Single Material from Root.
-  - Loose verts or edges, n-gons, flipped normals. Fixes: deletes them, triangulates the n-gons, recalculates normals outside.
-  - UVs outside 0-1, and UVs overlapping among parts that share a material, including stacked left and right islands. No fix: move the islands yourself.
-  - Texel density: the lowest and highest, in px/cm at 2048.
-  - A right part that isn't a mirror of its left across the top parent, as a note, because a logo on one side is fine. Fix: replaces the right part with a mirror of the left. The right part keeps its own UVs when its faces still match the mirror one for one. Otherwise it gets the left's UVs, which stack on the left's and show as overlapping: move its islands yourself.
-- Press Check Model again after changing the model by hand.
-
 **Explode**
 - **Explode slider:** spreads the parts apart along the chosen axis, including loose pieces inside a mesh. Move it back to 0 to put everything together. Parts at the same place on that axis that sit apart on the other two, like a left and right pair, move together and stay level. Linked copies that are turned or mirrored differently, like left and right temples sharing one mesh, move as whole parts; their loose pieces aren't split.
 - **X / Y / Z:** the world axis to spread along. X is the default. You can switch while exploded, and the parts move to the new axis.
@@ -94,11 +78,12 @@ For a thin line beside the lens, when the rim's edge loop stops short of it. Cli
 - **Unmark:** flips the marked faces back and forgets them.
 - **Select Marked:** goes to Edit Mode and selects only the marked faces.
 - **Fix Flipped Normals:** flips every face that points the wrong way, like Alt+N > Recalculate Outside. Marked faces stay flipped. Objects named `lens_*` are left alone.
-- **Unflip for Packing:** turns the marked faces back for a moment (they stay marked), so a UV packer sees every island the same way round. Pack the UVs, then press **Re-flip after Packing**. Mark, Fix Flipped Normals and Export for Painter wait until you do.
+- **Unflip for Packing:** turns the marked faces back for a moment (they stay marked), so a UV packer sees every island the same way round. Pack the UVs, then press **Re-flip after Packing**. Mark, Fix Flipped Normals and Export FBX wait until you do.
+- **Flipped / Unflipped:** how Export FBX writes the faces marked flipped. Flipped sends them as they are in the file. Unflipped turns them back in the FBX only; the file keeps them flipped.
+- **Export FBX:** refuses while there is Explode data (press **Reset** first) or while faces are unflipped for packing. Writes `<blend name>.fbx` beside the saved `.blend`: the selected objects, or every mesh when nothing is selected, with modifiers applied. Pressing it again overwrites the FBX. Save the Painter project in the same folder under the same name, and Import Textures finds its export without picking a folder.
+- **Folder button** (beside Export FBX): opens the folder of the saved `.blend` in Explorer, where the FBX goes.
 
 **SP Textures**
-- **Flipped / Unflipped:** how Export for Painter writes the faces marked flipped. Flipped sends them as they are in the file. Unflipped turns them back in the FBX only; the file keeps them flipped.
-- **Export for Painter:** refuses while there is Explode data (press **Reset** first) or while faces are unflipped for packing. Writes `<blend name>.fbx` beside the saved `.blend`: the selected objects, or every mesh when nothing is selected, with modifiers applied. Pressing it again overwrites the FBX. Save the Painter project in the same folder under the same name, and Import Textures finds its export without picking a folder.
 - **Folder:** the folder Painter exported into. The default, `//`, needs a saved file. It uses `<blend name>\Textures\` beside the `.blend` if that exists, which is where Painter's export goes when the `.spp` has the same name and folder as the `.blend`. Otherwise it uses the `.blend` file's own folder. A folder you pick yourself is used as it is.
 - **Normal Map:** untick it before Import Textures to leave the normal map out. To remove one already connected, untick it and press Import Textures again.
 - **Import Textures:** connects `<Material>_BaseColor`, `_Roughness`, `_Metallic` (or `_metalness`), `_Normal` and `_Transmissive` to each material with the same name. Capitals don't matter, and neither does a leading `Mat_`, so `Mat_ABC` picks up `ABC_basecolor.png`. It uses the selected objects, or the whole scene if nothing is selected.

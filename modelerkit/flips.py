@@ -209,7 +209,7 @@ class MODELERKIT_OT_mark_flipped(bpy.types.Operator):
     bl_idname = "modelerkit.mark_flipped"
     bl_label = "Mark Flipped"
     bl_description = ("Flip the selected faces (grown to whole UV islands; every face in Object Mode) and remember "
-                      "them, so Export for Painter can send them unflipped. Unmark flips them back")
+                      "them, so Export FBX can send them unflipped. Unmark flips them back")
     bl_options = {"REGISTER", "UNDO"}
 
     unmark: BoolProperty(name="Unmark", options={"SKIP_SAVE"})
@@ -370,6 +370,12 @@ def draw(layout, context):
         box.operator(MODELERKIT_OT_unflip_for_packing.bl_idname, text="Re-flip after Packing", icon="FILE_REFRESH")
     else:
         col.operator(MODELERKIT_OT_unflip_for_packing.bl_idname, icon="UV")
+    col.separator()
+    col.row(align=True).prop(context.scene, "mk_fbx_send_mode", expand=True)
+    row = col.row(align=True)
+    # by id: sp_texture_link imports this module, so importing it back would loop
+    row.operator("modelerkit.export_for_painter", icon="EXPORT")
+    row.operator("modelerkit.open_blend_folder", text="", icon="FILE_FOLDER")
 
 
 CLASSES = (MODELERKIT_OT_mark_flipped, MODELERKIT_OT_select_marked, MODELERKIT_OT_fix_normals,

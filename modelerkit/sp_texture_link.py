@@ -5,6 +5,7 @@ import filecmp
 import os
 import re
 import shutil
+import subprocess
 import sys
 
 import contextlib
@@ -278,7 +279,7 @@ class MODELERKIT_OT_install_painter_export(bpy.types.Operator):
 
 class MODELERKIT_OT_export_for_painter(bpy.types.Operator):
     bl_idname = "modelerkit.export_for_painter"
-    bl_label = "Export for Painter"
+    bl_label = "Export FBX"
     bl_description = ("Write <blend name>.fbx beside the .blend (selected objects, or every mesh when nothing is "
                       "selected), marked flipped faces sent Flipped or Unflipped as chosen above. Save the Painter "
                       "project there under the same name, and Import Textures finds its export by itself")
@@ -313,11 +314,29 @@ class MODELERKIT_OT_export_for_painter(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class MODELERKIT_OT_open_blend_folder(bpy.types.Operator):
+    bl_idname = "modelerkit.open_blend_folder"
+    bl_label = "Open Folder"
+    bl_description = "Open the folder of the saved .blend, where Export FBX writes"
+
+    @classmethod
+    def poll(cls, context):
+        if not bpy.data.filepath:
+            cls.poll_message_set("Save the .blend first")
+            return False
+        return True
+
+    def execute(self, context):
+        folder = os.path.dirname(bpy.data.filepath)
+        if sys.platform == "win32":
+            os.startfile(folder)
+        else:
+            subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", folder])
+        return {"FINISHED"}
+
+
 def draw(layout, context):
     col = layout.column(align=True)
-    col.row(align=True).prop(context.scene, "mk_fbx_send_mode", expand=True)
-    col.operator(MODELERKIT_OT_export_for_painter.bl_idname, icon="EXPORT")
-    col.separator()
     col.prop(context.scene, "mk_sp_texture_folder", text="")
     col.separator()
     col.prop(context.scene, "mk_sp_import_normal")
@@ -328,13 +347,13 @@ def draw(layout, context):
 
 
 CLASSES = (MODELERKIT_OT_import, MODELERKIT_OT_reload, MODELERKIT_OT_install_painter_export,
-           MODELERKIT_OT_export_for_painter)
+           MODELERKIT_OT_export_for_painter, MODELERKIT_OT_open_blend_folder)
 
 
 def register():
     bpy.types.Scene.mk_fbx_send_mode = bpy.props.EnumProperty(
         name="Send",
-        description="How Export for Painter writes the faces marked flipped",
+        description="How Export FBX writes the faces marked flipped",
         items=(("FLIPPED", "Flipped", "Marked faces go as they are in the file"),
                ("UNFLIPPED", "Unflipped", "Marked faces are turned back in the FBX; the file keeps them flipped")),
         default="FLIPPED")

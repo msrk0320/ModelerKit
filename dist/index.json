@@ -6,7 +6,7 @@
       "schema_version": "1.0.0",
       "id": "modelerkit",
       "name": "Modeler Kit",
-      "tagline": "Check model, explode, flip faces, dimensions, textures",
+      "tagline": "Explode, flip faces, dimensions, lens gap, textures",
       "version": "1.12.0",
       "type": "add-on",
       "maintainer": "MadSrei",
@@ -23,8 +23,8 @@
         "UV"
       ],
       "archive_url": "./modelerkit-1.12.0.zip",
-      "archive_size": 46447,
-      "archive_hash": "sha256:3e3174d6bceb64efea7a226f2f285e4fb951b2f84234d9679af008b40a6d1658"
+      "archive_size": 40475,
+      "archive_hash": "sha256:83e919d3aa67dc0e35ed35c8c02e143697ce08f25cb558f9df5baa5670763219"
     }
   ]
 }
